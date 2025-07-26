@@ -4,8 +4,8 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use crate::models::{Alert, CreateAlert};
+use crate::AppState;
 
 #[derive(Serialize, Deserialize)]
 pub struct AlertsResponse {
@@ -24,12 +24,12 @@ pub struct CreateAlertResponse {
 }
 
 pub async fn list_alerts(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<Json<AlertsResponse>, StatusCode> {
     let alerts = sqlx::query_as::<_, Alert>(
         "SELECT * FROM alerts ORDER BY created_at DESC LIMIT 100"
     )
-    .fetch_all(&pool)
+    .fetch_all(&state.db_pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -39,7 +39,7 @@ pub async fn list_alerts(
 }
 
 pub async fn create_alert(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(request): Json<CreateAlertRequest>,
 ) -> Result<Json<CreateAlertResponse>, StatusCode> {
     let alert = Alert::new(request.alert);
@@ -65,7 +65,7 @@ pub async fn create_alert(
         alert.resolved_at,
         alert.created_at
     )
-    .execute(&pool)
+    .execute(&state.db_pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

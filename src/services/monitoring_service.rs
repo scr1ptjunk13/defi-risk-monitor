@@ -1,12 +1,13 @@
 use crate::models::{Position, PoolState, RiskConfig, Alert, CreateAlert, AlertSeverity};
 use crate::services::{BlockchainService, RiskCalculator, AlertService};
+use crate::services::websocket_service::WebSocketService;
 use crate::config::Settings;
 use crate::error::AppError;
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
-use tracing::{info, error, warn};
+use tracing::{info, error};
 use bigdecimal::BigDecimal;
 
 pub struct MonitoringService {
@@ -14,12 +15,13 @@ pub struct MonitoringService {
     blockchain_service: Arc<BlockchainService>,
     risk_calculator: Arc<RiskCalculator>,
     alert_service: Arc<AlertService>,
+    websocket_service: Option<Arc<WebSocketService>>,
     settings: Settings,
 }
 
 impl MonitoringService {
     pub fn new(db_pool: PgPool, settings: Settings) -> Result<Self, AppError> {
-        let blockchain_service = Arc::new(BlockchainService::new(&settings)?);
+        let blockchain_service = Arc::new(BlockchainService::new(&settings, db_pool.clone())?);
         let risk_calculator = Arc::new(RiskCalculator::new());
         let alert_service = Arc::new(AlertService::new(&settings));
 
@@ -28,6 +30,7 @@ impl MonitoringService {
             blockchain_service,
             risk_calculator,
             alert_service,
+            websocket_service: None,
             settings,
         })
     }
@@ -66,6 +69,9 @@ impl MonitoringService {
     }
 
     async fn monitor_position(&self, position: &Position) -> Result<(), AppError> {
+        use chrono::{Duration, Utc};
+        use crate::services::price_storage::PriceStorageService;
+
         // Fetch current pool state
         let pool_state = self.blockchain_service
             .get_pool_state(&position.pool_address, position.chain_id)
@@ -74,23 +80,44 @@ impl MonitoringService {
         // Store pool state
         self.store_pool_state(&pool_state).await?;
 
-        // Fetch historical data for risk calculation
+        // Fetch historical pool state data
         let historical_data = self.fetch_historical_pool_data(
             &position.pool_address,
             position.chain_id,
             30, // Last 30 data points
         ).await?;
 
+        // Fetch historical price data for both tokens
+        let price_storage = PriceStorageService::new(self.db_pool.clone());
+        let now = Utc::now();
+        let lookback = now - Duration::days(7);
+        let token0_price_history = price_storage.get_history(
+            &position.token0_address,
+            position.chain_id,
+            lookback,
+            now,
+        ).await?;
+        let token1_price_history = price_storage.get_history(
+            &position.token1_address,
+            position.chain_id,
+            lookback,
+            now,
+        ).await?;
+
         // Fetch risk configuration for the user
         let risk_config = self.fetch_risk_config(&position.user_address).await?;
 
-        // Calculate risk metrics
+        // Calculate risk metrics with historical price data
         let risk_metrics = self.risk_calculator.calculate_position_risk(
             position,
             &pool_state,
             &risk_config,
             &historical_data,
-        )?;
+            &token0_price_history,
+            &token1_price_history,
+            None, // No protocol name available in this context
+            None, // No user risk params in monitoring context
+        ).await?;
 
         // Store risk metrics
         self.store_risk_metrics(position.id, &risk_metrics).await?;

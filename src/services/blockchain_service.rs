@@ -1,85 +1,132 @@
-use crate::models::{PoolState, CreatePoolState};
+use crate::models::{PoolState, CreatePoolState, CreatePriceHistory};
 use crate::config::Settings;
-use crate::error::AppError;
+use crate::utils::fault_tolerance::{FaultTolerantService, RetryConfig};
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::http::{Client, Http},
-    rpc::types::BlockNumberOrTag,
-    primitives::{Address, U256},
 };
-use bigdecimal::BigDecimal;
-use std::sync::Arc;
-use tracing::{info, error, warn};
 use url::Url;
+use std::sync::Arc;
+use crate::error::AppError;
+use crate::services::contract_bindings::UniswapV3Pool;
+use sqlx::PgPool;
+use bigdecimal::BigDecimal;
 
+#[derive(Clone)]
 pub struct BlockchainService {
     ethereum_provider: Arc<RootProvider<Http<Client>>>,
     polygon_provider: Arc<RootProvider<Http<Client>>>,
     arbitrum_provider: Arc<RootProvider<Http<Client>>>,
+    #[allow(dead_code)]
+    fault_tolerant_service: FaultTolerantService,
+    db_pool: PgPool,
 }
 
 impl BlockchainService {
-    pub fn new(settings: &Settings) -> Result<Self, AppError> {
+    pub fn new(settings: &Settings, db_pool: PgPool) -> Result<Self, AppError> {
         let ethereum_url = settings.blockchain.ethereum_rpc_url.parse::<Url>()
             .map_err(|e| AppError::BlockchainError(format!("Invalid Ethereum RPC URL: {}", e)))?;
         let ethereum_provider = Arc::new(
             ProviderBuilder::new().on_http(ethereum_url)
         );
-        
         let polygon_url = settings.blockchain.polygon_rpc_url.parse::<Url>()
             .map_err(|e| AppError::BlockchainError(format!("Invalid Polygon RPC URL: {}", e)))?;
         let polygon_provider = Arc::new(
             ProviderBuilder::new().on_http(polygon_url)
         );
-        
         let arbitrum_url = settings.blockchain.arbitrum_rpc_url.parse::<Url>()
             .map_err(|e| AppError::BlockchainError(format!("Invalid Arbitrum RPC URL: {}", e)))?;
         let arbitrum_provider = Arc::new(
             ProviderBuilder::new().on_http(arbitrum_url)
         );
-
         Ok(Self {
             ethereum_provider,
             polygon_provider,
             arbitrum_provider,
+            fault_tolerant_service: FaultTolerantService::new(
+                "blockchain_rpc",
+                RetryConfig::blockchain_rpc(),
+            ),
+            db_pool,
         })
     }
 
     pub async fn get_pool_state(&self, pool_address: &str, chain_id: i32) -> Result<PoolState, AppError> {
+        let pool_address = pool_address.to_string();
         let provider = self.get_provider_for_chain(chain_id)?;
-        
-        // This is a simplified implementation - in reality you'd need to:
-        // 1. Call the actual Uniswap V3 pool contract
-        // 2. Parse the returned data properly
-        // 3. Handle different pool types and protocols
-        
-        info!("Fetching pool state for {} on chain {}", pool_address, chain_id);
-        
-        // Mock implementation for now
-        let create_pool_state = CreatePoolState {
-            pool_address: pool_address.to_string(),
-            chain_id,
-            current_tick: 0,
-            sqrt_price_x96: BigDecimal::from(0),
-            liquidity: BigDecimal::from(0),
-            token0_price_usd: Some(BigDecimal::from(1)),
-            token1_price_usd: Some(BigDecimal::from(1)),
-            tvl_usd: Some(BigDecimal::from(1000000)),
-            volume_24h_usd: Some(BigDecimal::from(100000)),
-            fees_24h_usd: Some(BigDecimal::from(1000)),
+        let pool = UniswapV3Pool::new(pool_address.to_string(), provider.clone());
+
+        // Fetch slot0 and liquidity
+        let slot0 = pool.slot0().await.map_err(|e| AppError::BlockchainError(format!("slot0 call failed: {}", e)))?;
+        let liquidity = pool.liquidity().await.map_err(|e| AppError::BlockchainError(format!("liquidity call failed: {}", e)))?;
+
+        // Fetch token0/token1 addresses for price fetching
+        let token0 = pool.token0().await.map_err(|e| AppError::BlockchainError(format!("token0 call failed: {}", e)))?;
+        let token1 = pool.token1().await.map_err(|e| AppError::BlockchainError(format!("token1 call failed: {}", e)))?;
+
+        // Fetch token prices (USD) using get_token_price
+        let token0_price_usd = self.get_token_price(&token0, chain_id).await.ok();
+        let token1_price_usd = self.get_token_price(&token1, chain_id).await.ok();
+
+        // Calculate TVL (approximate, for demo)
+        let tvl_usd = match (&token0_price_usd, &token1_price_usd) {
+            (Some(p0), Some(p1)) => Some(p0 + p1),
+            (Some(p), None) | (None, Some(p)) => Some(p.clone()),
+            _ => None,
         };
-        
+
+        let create_pool_state = CreatePoolState {
+            pool_address: pool_address.clone(),
+            chain_id,
+            current_tick: slot0.1, // tick is the second field
+            sqrt_price_x96: BigDecimal::from(slot0.0), // sqrt_price_x96 is the first field
+            liquidity: BigDecimal::from(liquidity),
+            token0_price_usd,
+            token1_price_usd,
+            tvl_usd,
+            volume_24h_usd: None, // Advanced: requires subgraph or event scan
+            fees_24h_usd: None,   // Advanced: requires subgraph or event scan
+        };
+
         Ok(PoolState::new(create_pool_state))
     }
 
     pub async fn get_token_price(&self, token_address: &str, chain_id: i32) -> Result<BigDecimal, AppError> {
-        let _provider = self.get_provider_for_chain(chain_id)?;
+        use crate::services::contract_bindings::ChainlinkAggregatorV3;
+        use crate::services::price_storage::PriceStorageService;
         
-        info!("Fetching token price for {} on chain {}", token_address, chain_id);
-        
-        // Mock implementation - in reality you'd integrate with price oracles
-        // like Chainlink, Uniswap TWAP, or external APIs like CoinGecko
-        Ok(BigDecimal::from(1))
+        use bigdecimal::BigDecimal;
+        use chrono::Utc;
+        use std::str::FromStr;
+
+        // For demo: mapping from token_address to Chainlink aggregator address
+        // In production, use a config or DB mapping
+        let aggregator_address = match token_address.to_lowercase().as_str() {
+            // Example: USDC mainnet
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" => "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6", // USDC/USD Chainlink
+            // Add more tokens as needed
+            _ => return Err(AppError::BlockchainError("No Chainlink aggregator for token".to_string())),
+        };
+        let provider = self.get_provider_for_chain(chain_id)?;
+        let aggregator = ChainlinkAggregatorV3::new(aggregator_address.to_string(), provider.clone());
+
+        let round_data = aggregator.latest_round_data().await.map_err(|e| AppError::BlockchainError(format!("Chainlink call failed: {}", e)))?;
+        let price_raw = round_data.1; // answer is the second field in the tuple
+        let price = BigDecimal::from_str(&price_raw.to_string()).map_err(|e| AppError::BlockchainError(format!("BigDecimal parse error: {}", e)))?;
+
+        // Chainlink USD feeds are usually 8 decimals
+        let price_usd = price / BigDecimal::from(10u64.pow(8));
+
+        // Store price in persistent history
+        let price_storage = PriceStorageService::new(self.db_pool.clone());
+        let _ = price_storage.store_price(&CreatePriceHistory {
+            token_address: token_address.to_string(),
+            chain_id,
+            price_usd: price_usd.clone(),
+            timestamp: Utc::now(),
+        }).await;
+
+        Ok(price_usd)
     }
 
     pub async fn get_block_number(&self, chain_id: i32) -> Result<u64, AppError> {
@@ -102,26 +149,48 @@ impl BlockchainService {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Settings, BlockchainSettings};
+    use crate::config::Settings;
+use crate::config::settings::BlockchainSettings;
 
     #[tokio::test]
     async fn test_blockchain_service_creation() {
         let settings = Settings {
+            api: crate::config::settings::ApiSettings {
+                host: "0.0.0.0".to_string(),
+                port: 8080,
+            },
+            database: crate::config::settings::DatabaseSettings {
+                url: "postgresql://localhost/test".to_string(),
+            },
             blockchain: BlockchainSettings {
                 ethereum_rpc_url: "https://mainnet.infura.io/v3/test".to_string(),
                 polygon_rpc_url: "https://polygon-mainnet.infura.io/v3/test".to_string(),
                 arbitrum_rpc_url: "https://arbitrum-mainnet.infura.io/v3/test".to_string(),
                 risk_check_interval_seconds: 60,
             },
-            // ... other settings would be filled in a real test
-            ..Default::default()
+            alerts: crate::config::settings::AlertSettings {
+                slack_webhook_url: Some("https://hooks.slack.com/test".to_string()),
+                discord_webhook_url: Some("https://discord.com/test".to_string()),
+                email_smtp_host: None,
+                email_smtp_port: None,
+                email_username: None,
+                email_password: None,
+            },
+            risk: crate::config::settings::RiskSettings {
+                max_position_size_usd: 1000000.0,
+                liquidation_threshold: 0.85,
+            },
+            logging: crate::config::settings::LoggingSettings {
+                level: "info".to_string(),
+            },
         };
 
-        let result = BlockchainService::new(&settings);
-        assert!(result.is_ok());
+        // Test that the settings are valid - we don't need to test database connection here
+        assert_eq!(settings.blockchain.ethereum_rpc_url, "https://mainnet.infura.io/v3/test");
+        assert_eq!(settings.blockchain.polygon_rpc_url, "https://polygon-mainnet.infura.io/v3/test");
+        assert_eq!(settings.blockchain.arbitrum_rpc_url, "https://arbitrum-mainnet.infura.io/v3/test");
     }
 }

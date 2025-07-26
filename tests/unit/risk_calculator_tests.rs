@@ -111,12 +111,80 @@ fn test_price_impact_calculation() {
 }
 
 #[test]
-fn test_volatility_calculation() {
-    // Placeholder for volatility calculation tests
+fn test_volatility_with_price_history() {
+    use defi_risk_monitor::models::PriceHistory;
+    use chrono::{Utc, Duration};
     let calculator = RiskCalculator::new();
-    
-    // Test logic would go here
-    assert!(true);
+    let now = Utc::now();
+    // Simulate price history for token0
+    let price_history = vec![
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(100), timestamp: now - Duration::days(5) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(110), timestamp: now - Duration::days(4) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(105), timestamp: now - Duration::days(3) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(120), timestamp: now - Duration::days(2) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(125), timestamp: now - Duration::days(1) },
+    ];
+    let volatility = calculator.calculate_volatility_with_prices(&price_history, &[], &[]).unwrap();
+    assert!(volatility > BigDecimal::from(0));
+}
+
+#[test]
+fn test_correlation_with_price_history() {
+    use defi_risk_monitor::models::PriceHistory;
+    use chrono::{Utc, Duration};
+    let calculator = RiskCalculator::new();
+    let now = Utc::now();
+    // Simulate price history for token0 and token1
+    let price_history0 = vec![
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(100), timestamp: now - Duration::days(4) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(110), timestamp: now - Duration::days(3) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(120), timestamp: now - Duration::days(2) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(130), timestamp: now - Duration::days(1) },
+    ];
+    let price_history1 = vec![
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken1".into(), chain_id: 1, price_usd: BigDecimal::from(200), timestamp: now - Duration::days(4) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken1".into(), chain_id: 1, price_usd: BigDecimal::from(220), timestamp: now - Duration::days(3) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken1".into(), chain_id: 1, price_usd: BigDecimal::from(240), timestamp: now - Duration::days(2) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken1".into(), chain_id: 1, price_usd: BigDecimal::from(260), timestamp: now - Duration::days(1) },
+    ];
+    let correlation = calculator.calculate_correlation_with_prices(&price_history0, &price_history1, &[]).unwrap();
+    // Should be strongly positive for perfectly correlated series
+    assert!(correlation > BigDecimal::from(0));
+}
+
+#[test]
+fn test_var_with_price_history() {
+    use defi_risk_monitor::models::{PriceHistory, Position};
+    use chrono::{Utc, Duration};
+    let calculator = RiskCalculator::new();
+    let now = Utc::now();
+    // Simulate price history for token0
+    let price_history = vec![
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(100), timestamp: now - Duration::days(3) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(110), timestamp: now - Duration::days(2) },
+        PriceHistory { id: uuid::Uuid::new_v4(), token_address: "0xToken0".into(), chain_id: 1, price_usd: BigDecimal::from(120), timestamp: now - Duration::days(1) },
+    ];
+    // Minimal position mock
+    let position = Position {
+        id: uuid::Uuid::new_v4(),
+        user_address: "0xUser".into(),
+        protocol: "Uniswap V3".into(),
+        pool_address: "0xPool".into(),
+        token0_address: "0xToken0".into(),
+        token1_address: "0xToken1".into(),
+        token0_amount: BigDecimal::from(100),
+        token1_amount: BigDecimal::from(1),
+        liquidity: BigDecimal::from(1000),
+        tick_lower: 0,
+        tick_upper: 10,
+        fee_tier: 3000,
+        chain_id: 1,
+        created_at: now,
+        updated_at: now,
+    };
+    let var = calculator.calculate_value_at_risk_with_prices(&position, &price_history, &[], &[], 1).unwrap();
+    // VaR should be > 0 for volatile price series
+    assert!(var >= BigDecimal::from(0));
 }
 
 // Helper functions for creating test data

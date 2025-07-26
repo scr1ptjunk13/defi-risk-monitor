@@ -1,6 +1,6 @@
 use bigdecimal::BigDecimal;
-use num_traits::{Zero, ToPrimitive, One};
-use std::iter::Sum;
+use std::str::FromStr;
+use num_traits::{Zero, ToPrimitive};
 
 /// Calculate percentage change between two values
 pub fn percentage_change(old_value: BigDecimal, new_value: BigDecimal) -> Result<BigDecimal, String> {
@@ -28,10 +28,9 @@ pub fn standard_deviation(values: &[BigDecimal]) -> BigDecimal {
         })
         .sum();
     let variance = &variance_sum / &BigDecimal::from((values.len() - 1) as i32);
-    
-    // Simplified square root using f64 conversion
+    // Use from_f64 for BigDecimal
     let variance_f64 = variance.to_f64().unwrap_or(0.0);
-    BigDecimal::try_from(variance_f64.sqrt()).unwrap_or_else(|_| BigDecimal::zero())
+    BigDecimal::from_str(&(variance_f64.sqrt()).to_string()).unwrap_or_else(|_| BigDecimal::zero())
 }
 
 /// Calculate moving average
@@ -79,7 +78,7 @@ pub fn correlation(x: &[BigDecimal], y: &[BigDecimal]) -> Result<BigDecimal, Str
     
     let product = &sum_sq_x * &sum_sq_y;
     let denominator_f64 = product.to_f64().unwrap_or(0.0).sqrt();
-    let denominator = BigDecimal::try_from(denominator_f64).unwrap_or_else(|_| BigDecimal::from(0));
+    let denominator = BigDecimal::from_str(&(denominator_f64).to_string()).unwrap_or_else(|_| BigDecimal::zero());
     
     if denominator.is_zero() {
         return Ok(BigDecimal::from(0));

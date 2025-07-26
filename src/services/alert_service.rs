@@ -3,7 +3,7 @@ use crate::config::Settings;
 use crate::error::AppError;
 use reqwest::Client;
 use serde_json::json;
-use tracing::{info, error, warn};
+use tracing::{info, warn};
 
 pub struct AlertService {
     client: Client,
@@ -173,7 +173,8 @@ impl AlertService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Settings, AlertSettings};
+    use crate::config::Settings;
+use crate::config::settings::AlertSettings;
 
     #[test]
     fn test_alert_service_creation() {
@@ -186,11 +187,29 @@ mod tests {
                 email_username: None,
                 email_password: None,
             },
-            // ... other settings would be filled in a real test
-            ..Default::default()
+            api: crate::config::settings::ApiSettings {
+                host: "0.0.0.0".to_string(),
+                port: 8080,
+            },
+            database: crate::config::settings::DatabaseSettings {
+                url: "postgresql://test:test@localhost/test".to_string(),
+            },
+            blockchain: crate::config::settings::BlockchainSettings {
+                ethereum_rpc_url: "https://mainnet.infura.io/v3/test".to_string(),
+                polygon_rpc_url: "https://polygon-mainnet.infura.io/v3/test".to_string(),
+                arbitrum_rpc_url: "https://arbitrum-mainnet.infura.io/v3/test".to_string(),
+                risk_check_interval_seconds: 60,
+            },
+            risk: crate::config::settings::RiskSettings {
+                max_position_size_usd: 1000000.0,
+                liquidation_threshold: 0.85,
+            },
+            logging: crate::config::settings::LoggingSettings {
+                level: "info".to_string(),
+            }
         };
 
-        let service = AlertService::new(&settings);
+        let _service = AlertService::new(&settings);
         // Basic test to ensure the service can be created
         assert!(true);
     }

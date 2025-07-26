@@ -51,9 +51,80 @@ pub struct LoggingSettings {
     pub level: String,
 }
 
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            database: DatabaseSettings::default(),
+            api: ApiSettings::default(),
+            blockchain: BlockchainSettings::default(),
+            risk: RiskSettings::default(),
+            alerts: AlertSettings::default(),
+            logging: LoggingSettings::default(),
+        }
+    }
+}
+
+impl Default for DatabaseSettings {
+    fn default() -> Self {
+        DatabaseSettings {
+            url: "postgresql://postgres:password@localhost:5432/defi_risk_monitor_test".to_string(),
+        }
+    }
+}
+
+impl Default for ApiSettings {
+    fn default() -> Self {
+        ApiSettings {
+            host: "0.0.0.0".to_string(),
+            port: 8080,
+        }
+    }
+}
+
+impl Default for BlockchainSettings {
+    fn default() -> Self {
+        BlockchainSettings {
+            ethereum_rpc_url: "https://eth-mainnet.alchemyapi.io/v2/test".to_string(),
+            polygon_rpc_url: "https://polygon-mainnet.alchemyapi.io/v2/test".to_string(),
+            arbitrum_rpc_url: "https://arb-mainnet.alchemyapi.io/v2/test".to_string(),
+            risk_check_interval_seconds: 60,
+        }
+    }
+}
+
+impl Default for RiskSettings {
+    fn default() -> Self {
+        RiskSettings {
+            max_position_size_usd: 1000000.0,
+            liquidation_threshold: 0.85,
+        }
+    }
+}
+
+impl Default for AlertSettings {
+    fn default() -> Self {
+        AlertSettings {
+            slack_webhook_url: None,
+            discord_webhook_url: None,
+            email_smtp_host: None,
+            email_smtp_port: None,
+            email_username: None,
+            email_password: None,
+        }
+    }
+}
+
+impl Default for LoggingSettings {
+    fn default() -> Self {
+        LoggingSettings {
+            level: "info".to_string(),
+        }
+    }
+}
+
 impl Settings {
     pub fn new() -> Result<Self, config::ConfigError> {
-        let settings = config::Config::builder()
+        let _settings = config::Config::builder()
             .add_source(config::Environment::default())
             .build()?;
 

@@ -62,3 +62,21 @@ impl RiskConfig {
         }
     }
 }
+
+impl Default for RiskConfig {
+    fn default() -> Self {
+        let now = Utc::now();
+        Self {
+            id: Uuid::new_v4(),
+            user_address: "default".to_string(),
+            max_position_size_usd: BigDecimal::from(1000000),
+            liquidation_threshold: BigDecimal::from(85),
+            price_impact_threshold: BigDecimal::from(5),
+            impermanent_loss_threshold: BigDecimal::from(10),
+            volatility_threshold: BigDecimal::from(20),
+            correlation_threshold: BigDecimal::from(80),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}

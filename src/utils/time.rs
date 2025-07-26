@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc, Duration, NaiveDateTime};
+use chrono::{DateTime, Utc, Duration};
 use std::collections::HashMap;
 
 /// Get current UTC timestamp
@@ -105,7 +105,7 @@ pub fn parse_iso_timestamp(timestamp_str: &str) -> Result<DateTime<Utc>, chrono:
 
 /// Convert Unix timestamp to DateTime<Utc>
 pub fn from_unix_timestamp(timestamp: i64) -> Option<DateTime<Utc>> {
-    NaiveDateTime::from_timestamp_opt(timestamp, 0).map(|dt| dt.and_utc())
+    DateTime::from_timestamp(timestamp, 0)
 }
 
 /// Convert DateTime<Utc> to Unix timestamp
