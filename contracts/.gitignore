@@ -1,0 +1,29 @@
+# Foundry
+cache/
+out/
+lib/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.local
+
+# Node modules (if using with frontend)
+node_modules/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Broadcast logs
+broadcast/
+
+# Coverage
+coverage/
+lcov.info

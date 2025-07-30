@@ -1,0 +1,50 @@
+{
+  "name": "uniswap-liquidity-creator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "clear": "rm -rf node_modules package-lock.json .next out"
+  },
+  "dependencies": {
+    "@ant-design/charts": "^2.6.1",
+    "@formspree/react": "^2.5.4",
+    "@next/font": "13.2.4",
+    "@rainbow-me/rainbowkit": "^2.1.7",
+    "@tanstack/react-query": "^5.59.0",
+    "@uniswap/sdk-core": "^4.2.1",
+    "@uniswap/v3-sdk": "^3.25.2",
+    "antd": "^5.26.6",
+    "ethers": "^5.7.2",
+    "next": "13.2.4",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-hot-toast": "^2.5.2",
+    "react-icons": "^5.5.0",
+    "viem": "^2.21.19",
+    "wagmi": "^2.12.17",
+    "web3modal": "^1.9.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.9",
+    "@types/d3-dispatch": "^3.0.6",
+    "@types/d3-dsv": "^3.0.7",
+    "@types/d3-fetch": "^3.0.7",
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-geo": "^3.1.0",
+    "@types/d3-hierarchy": "^3.1.7",
+    "@types/d3-quadtree": "^3.0.6",
+    "@types/d3-random": "^3.0.3",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^24.0.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.21",
+    "tailwindcss": "^3.3.1",
+    "typescript": "^5.8.3"
+  }
+}
