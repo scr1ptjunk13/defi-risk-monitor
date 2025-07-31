@@ -7,6 +7,7 @@ pub mod alert_engine;
 pub mod threshold_service;
 pub mod user_risk_config_service;
 pub mod price_validation;
+pub mod price_feed;
 pub mod audit_service;
 pub mod auth_service;
 pub mod price_storage;

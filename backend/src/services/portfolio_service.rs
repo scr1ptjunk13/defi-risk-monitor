@@ -1,5 +1,6 @@
 use crate::models::position::Position;
 use crate::error::types::AppError;
+use crate::services::price_validation::PriceValidationService;
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -34,15 +35,19 @@ pub struct PortfolioSummary {
 
 pub struct PortfolioService {
     db_pool: PgPool,
+    price_validation_service: PriceValidationService,
 }
 
 impl PortfolioService {
-    pub fn new(db_pool: PgPool) -> Self {
-        Self { db_pool }
+    pub async fn new(db_pool: PgPool, price_validation_service: PriceValidationService) -> Self {
+        Self { 
+            db_pool,
+            price_validation_service,
+        }
     }
 
     /// Aggregate all positions for a user and return a portfolio summary
-    pub async fn get_portfolio_summary(&self, user_address: &str) -> Result<PortfolioSummary, AppError> {
+    pub async fn get_portfolio_summary(&mut self, user_address: &str) -> Result<PortfolioSummary, AppError> {
         // Fetch all positions for the user
         let positions: Vec<Position> = sqlx::query_as!(
             Position,
@@ -66,10 +71,24 @@ impl PortfolioService {
 
         // TODO: fetch risk scores and fees per position if available
         for pos in &positions {
-            // Calculate current position value using token amounts and mock prices
-            let mock_token0_price = BigDecimal::from(1); // TODO: Replace with actual price fetching
-            let mock_token1_price = BigDecimal::from(1); // TODO: Replace with actual price fetching
-            let current_value = pos.calculate_position_value_usd(mock_token0_price.clone(), mock_token1_price.clone());
+            // Calculate current position value using real-time prices
+            let token0_price = match self.price_validation_service.get_validated_price(&pos.token0_address, pos.chain_id).await {
+                Ok(validated_price) => validated_price.price_usd,
+                Err(e) => {
+                    tracing::warn!("Failed to fetch price for token0 {}: {}, using fallback", pos.token0_address, e);
+                    BigDecimal::from(1) // Fallback price
+                }
+            };
+            
+            let token1_price = match self.price_validation_service.get_validated_price(&pos.token1_address, pos.chain_id).await {
+                Ok(validated_price) => validated_price.price_usd,
+                Err(e) => {
+                    tracing::warn!("Failed to fetch price for token1 {}: {}, using fallback", pos.token1_address, e);
+                    BigDecimal::from(1) // Fallback price
+                }
+            };
+            
+            let current_value = pos.calculate_position_value_usd(token0_price.clone(), token1_price.clone());
             let entry_value = pos.entry_token0_price_usd.clone().unwrap_or(BigDecimal::from(0)) + pos.entry_token1_price_usd.clone().unwrap_or(BigDecimal::from(0));
             let pnl = &current_value - &entry_value;
             let fees = BigDecimal::from(0); // Placeholder, replace with actual fees if tracked

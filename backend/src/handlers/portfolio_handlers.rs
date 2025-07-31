@@ -15,7 +15,15 @@ pub async fn get_portfolio(
     State(state): State<AppState>,
     Query(query): Query<GetPortfolioQuery>,
 ) -> Result<Json<PortfolioSummary>, (StatusCode, String)> {
-    let service = PortfolioService::new(state.db_pool.clone());
+    // Create a dummy price validation service for now - this should be properly injected
+    let cache_manager = crate::utils::caching::CacheManager::new(None).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Cache init failed: {}", e)))?;
+    let price_sources = crate::services::price_validation::create_default_price_sources();
+    let config = crate::services::price_validation::PriceValidationConfig::default();
+    let price_validation_service = crate::services::price_validation::PriceValidationService::new(price_sources, config, cache_manager).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Price service init failed: {}", e)))?;
+    
+    let mut service = PortfolioService::new(state.db_pool.clone(), price_validation_service).await;
     match service.get_portfolio_summary(&query.user_address).await {
         Ok(summary) => Ok(Json(summary)),
         Err(e) => {

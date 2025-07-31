@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 use bigdecimal::{BigDecimal, Zero, ToPrimitive};
 use serde::{Serialize, Deserialize};
-use tracing::{info, warn};
+use tracing::{info, warn, error};
+use crate::services::price_feed::{PriceFeedService, create_default_providers};
 use crate::error::AppError;
 use crate::utils::caching::{CacheManager, CachedPrice};
 use crate::utils::fault_tolerance::{FaultTolerantService, RetryConfig};
@@ -100,6 +101,7 @@ pub struct PriceValidationService {
     #[allow(dead_code)]
     fault_tolerant_service: FaultTolerantService,
     price_history: HashMap<String, Vec<BigDecimal>>, // For anomaly detection
+    price_feed_service: PriceFeedService,
 }
 
 impl PriceValidationService {
@@ -120,12 +122,16 @@ impl PriceValidationService {
             RetryConfig::price_api(),
         );
 
+        let price_feed_service = PriceFeedService::new(create_default_providers())
+            .map_err(|e| AppError::ExternalApiError(format!("Failed to initialize price feed service: {}", e)))?;
+
         Ok(Self {
             sources: sources_map,
             config,
             cache_manager,
             fault_tolerant_service,
             price_history: HashMap::new(),
+            price_feed_service,
         })
     }
 
@@ -201,66 +207,35 @@ impl PriceValidationService {
         token_address: &str,
         chain_id: i32,
     ) -> Result<HashMap<String, BigDecimal>, AppError> {
-        let mut source_prices = HashMap::new();
-        let enabled_sources: Vec<_> = self.sources.values()
-            .filter(|source| source.enabled)
-            .collect();
+        info!("Fetching real-time prices for token {}:{}", token_address, chain_id);
 
-        info!("Fetching prices from {} sources for {}:{}", 
-              enabled_sources.len(), token_address, chain_id);
-
-        // Fetch from each source concurrently
-        let mut fetch_tasks = Vec::new();
-        
-        for source in enabled_sources {
-            let source_name = source.name.clone();
-            let _token_addr = token_address.to_lowercase();
-            let fault_tolerant_service = FaultTolerantService::new(
-                "price_validation",
-                RetryConfig::price_api(),
-            );
-            
-            let task = tokio::spawn(async move {
-                let result = fault_tolerant_service.execute(|| async {
-                    // Mock price fetching - in production, this would call actual APIs
-                    // like CoinGecko, CoinMarketCap, Chainlink, etc.
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    
-                    // Simulate different prices from different sources with small variations
-                    let base_price = 1000.0; // Mock base price
-                    let variation = match source_name.as_str() {
-                        "coingecko" => 0.98,
-                        "coinmarketcap" => 1.02,
-                        "chainlink" => 1.00,
-                        _ => 1.01,
-                    };
-                    
-                    let final_price = (base_price * variation) as i64;
-                    Ok::<BigDecimal, AppError>(BigDecimal::from(final_price))
-                }).await;
+        // Use the real price feed service to fetch prices from multiple providers
+        match self.price_feed_service.fetch_prices(token_address, chain_id).await {
+            Ok(prices) => {
+                info!("Successfully fetched prices from {} providers", prices.len());
                 
-                (source_name, result)
-            });
-            
-            fetch_tasks.push(task);
-        }
-
-        // Collect results
-        for task in fetch_tasks {
-            match task.await {
-                Ok((source_name, Ok(price))) => {
-                    source_prices.insert(source_name, price);
+                // Log the prices for debugging
+                for (provider, price) in &prices {
+                    info!("Price from {}: ${}", provider, price);
                 }
-                Ok((source_name, Err(e))) => {
-                    warn!("Failed to fetch price from {}: {}", source_name, e);
-                }
-                Err(e) => {
-                    warn!("Task error: {}", e);
+                
+                Ok(prices)
+            }
+            Err(e) => {
+                error!("Failed to fetch prices from price feed service: {}", e);
+                
+                // Fallback: try to get cached prices or return error
+                let cache_key = format!("price:{}:{}", chain_id, token_address);
+                if let Ok(Some(cached_price)) = self.cache_manager.price_cache.get(&cache_key).await {
+                    warn!("Using cached price as fallback: ${}", cached_price.price_usd);
+                    let mut fallback_prices = HashMap::new();
+                    fallback_prices.insert("cached".to_string(), cached_price.price_usd);
+                    Ok(fallback_prices)
+                } else {
+                    Err(e)
                 }
             }
         }
-
-        Ok(source_prices)
     }
 
     /// Validate and aggregate prices from multiple sources

@@ -15,6 +15,7 @@ pub enum AppError {
     RateLimitError(String),
     SecurityError(String),
     ExternalServiceError(String),
+    ExternalApiError(String),
     UnsupportedChain(i32),
     InternalError(String),
 }
@@ -33,6 +34,7 @@ impl fmt::Display for AppError {
             AppError::RateLimitError(msg) => write!(f, "Rate limit error: {}", msg),
             AppError::SecurityError(msg) => write!(f, "Security error: {}", msg),
             AppError::ExternalServiceError(msg) => write!(f, "External service error: {}", msg),
+            AppError::ExternalApiError(msg) => write!(f, "External API error: {}", msg),
             AppError::UnsupportedChain(chain_id) => write!(f, "Unsupported chain: {}", chain_id),
             AppError::InternalError(msg) => write!(f, "Internal error: {}", msg),
         }
