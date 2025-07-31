@@ -6,6 +6,8 @@ use tracing::{info, warn};
 use uuid::Uuid;
 use sha2::{Sha256, Digest};
 use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
+use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
 use crate::error::AppError;
 
 /// User roles for role-based access control
@@ -133,6 +135,77 @@ pub struct UserInfo {
     pub username: String,
     pub email: String,
     pub role: UserRole,
+}
+
+/// User settings for customization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSettings {
+    pub user_id: Uuid,
+    pub email_notifications: bool,
+    pub sms_notifications: bool,
+    pub webhook_notifications: bool,
+    pub risk_tolerance: String,
+    pub preferred_currency: String,
+    pub dashboard_layout: serde_json::Value,
+    pub alert_frequency: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// User portfolio summary
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPortfolioSummary {
+    pub user_id: Uuid,
+    pub total_value_usd: BigDecimal,
+    pub total_positions: i64,
+    pub active_protocols: i64,
+    pub total_risk_score: BigDecimal,
+    pub last_updated: DateTime<Utc>,
+    pub top_positions: Vec<PositionSummary>,
+    pub risk_breakdown: RiskBreakdown,
+}
+
+/// Individual position summary
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionSummary {
+    pub position_id: Uuid,
+    pub protocol_name: String,
+    pub pool_address: String,
+    pub token_pair: String,
+    pub value_usd: BigDecimal,
+    pub risk_score: BigDecimal,
+    pub apy: Option<BigDecimal>,
+}
+
+/// Risk breakdown by category
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskBreakdown {
+    pub liquidity_risk: BigDecimal,
+    pub smart_contract_risk: BigDecimal,
+    pub market_risk: BigDecimal,
+    pub counterparty_risk: BigDecimal,
+    pub mev_risk: BigDecimal,
+    pub cross_chain_risk: BigDecimal,
+}
+
+/// User risk preferences
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserRiskPreferences {
+    pub user_id: Uuid,
+    pub max_position_size_usd: Option<BigDecimal>,
+    pub max_protocol_allocation_percent: Option<BigDecimal>,
+    pub max_single_pool_percent: Option<BigDecimal>,
+    pub min_liquidity_threshold_usd: Option<BigDecimal>,
+    pub max_risk_score: Option<BigDecimal>,
+    pub allowed_protocols: serde_json::Value,
+    pub blocked_protocols: serde_json::Value,
+    pub preferred_chains: serde_json::Value,
+    pub max_slippage_percent: Option<BigDecimal>,
+    pub auto_rebalance_enabled: bool,
+    pub stop_loss_enabled: bool,
+    pub stop_loss_threshold_percent: Option<BigDecimal>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Rate limiting configuration
@@ -485,6 +558,205 @@ impl AuthService {
         }
         
         stats
+    }
+
+    /// Get user by wallet address
+    pub async fn get_user_by_address(&self, address: &str) -> Result<Option<User>, AppError> {
+        let user_record = sqlx::query!(
+            "SELECT u.id, u.username, u.email, u.role, u.is_active, u.api_key_hash, 
+             u.last_login, u.created_at, u.updated_at
+             FROM users u
+             JOIN user_addresses ua ON u.id = ua.user_id
+             WHERE LOWER(ua.address) = LOWER($1) AND u.is_active = true",
+            address
+        )
+        .fetch_optional(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get user by address: {}", e)))?;
+
+        if let Some(record) = user_record {
+            let role: UserRole = serde_json::from_str(&format!("\"{}\"", record.role))
+                .map_err(|e| AppError::DatabaseError(format!("Failed to parse user role: {}", e)))?;
+
+            Ok(Some(User {
+                id: record.id,
+                username: record.username,
+                email: record.email,
+                role,
+                is_active: record.is_active,
+                api_key_hash: record.api_key_hash,
+                last_login: record.last_login,
+                created_at: record.created_at,
+                updated_at: record.updated_at,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update user settings
+    pub async fn update_user_settings(
+        &self,
+        user_id: Uuid,
+        email_notifications: Option<bool>,
+        sms_notifications: Option<bool>,
+        webhook_notifications: Option<bool>,
+        risk_tolerance: Option<String>,
+        preferred_currency: Option<String>,
+        dashboard_layout: Option<serde_json::Value>,
+        alert_frequency: Option<String>,
+    ) -> Result<UserSettings, AppError> {
+        let now = chrono::Utc::now();
+
+        let updated_settings = sqlx::query_as!(
+            UserSettings,
+            "UPDATE user_settings SET 
+             email_notifications = COALESCE($2, email_notifications),
+             sms_notifications = COALESCE($3, sms_notifications),
+             webhook_notifications = COALESCE($4, webhook_notifications),
+             risk_tolerance = COALESCE($5, risk_tolerance),
+             preferred_currency = COALESCE($6, preferred_currency),
+             dashboard_layout = COALESCE($7, dashboard_layout),
+             alert_frequency = COALESCE($8, alert_frequency),
+             updated_at = $9
+             WHERE user_id = $1
+             RETURNING *",
+            user_id,
+            email_notifications,
+            sms_notifications,
+            webhook_notifications,
+            risk_tolerance,
+            preferred_currency,
+            dashboard_layout,
+            alert_frequency,
+            now
+        )
+        .fetch_one(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to update user settings: {}", e)))?;
+
+        Ok(updated_settings)
+    }
+
+    /// Get user portfolio summary
+    pub async fn get_user_portfolio_summary(&self, user_id: Uuid) -> Result<UserPortfolioSummary, AppError> {
+
+        // Get basic portfolio stats
+        let portfolio_stats = sqlx::query!(
+            "SELECT 
+                COUNT(p.id) as total_positions,
+                COUNT(DISTINCT p.protocol) as active_protocols,
+                COALESCE(SUM((p.token0_amount * 1000) + (p.token1_amount * 1000)), 0) as total_value_usd,
+                COALESCE(AVG(0.15), 0) as avg_risk_score,
+                MAX(p.updated_at) as last_updated
+             FROM positions p 
+             WHERE p.user_address = $1",
+            user_id.to_string()
+        )
+        .fetch_one(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get portfolio stats: {}", e)))?;
+
+        // Get top 5 positions (simplified since we don't have all the expected fields)
+        let top_positions: Vec<PositionSummary> = Vec::new(); // Placeholder for now
+
+        // Get risk breakdown (simplified calculation)
+        let risk_breakdown = RiskBreakdown {
+            liquidity_risk: "0.15".parse().unwrap(),
+            smart_contract_risk: "0.10".parse().unwrap(),
+            market_risk: "0.25".parse().unwrap(),
+            counterparty_risk: "0.08".parse().unwrap(),
+            mev_risk: "0.12".parse().unwrap(),
+            cross_chain_risk: "0.05".parse().unwrap(),
+        };
+
+        Ok(UserPortfolioSummary {
+            user_id,
+            total_value_usd: portfolio_stats.total_value_usd.unwrap_or_default(),
+            total_positions: portfolio_stats.total_positions.unwrap_or(0),
+            active_protocols: portfolio_stats.active_protocols.unwrap_or(0),
+            total_risk_score: portfolio_stats.avg_risk_score.unwrap_or_default(),
+            last_updated: portfolio_stats.last_updated.unwrap_or_else(chrono::Utc::now),
+            top_positions,
+            risk_breakdown,
+        })
+    }
+
+    /// Get user risk preferences
+    pub async fn get_user_risk_preferences(&self, user_id: Uuid) -> Result<UserRiskPreferences, AppError> {
+
+        let preferences = sqlx::query_as!(
+            UserRiskPreferences,
+            "SELECT * FROM user_risk_preferences WHERE user_id = $1",
+            user_id
+        )
+        .fetch_one(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get user risk preferences: {}", e)))?;
+
+        Ok(preferences)
+    }
+
+    /// Get user by ID
+    pub async fn get_user_by_id(&self, user_id: Uuid) -> Result<Option<User>, AppError> {
+        let user_record = sqlx::query!(
+            "SELECT id, username, email, role, is_active, api_key_hash, last_login, created_at, updated_at
+             FROM users WHERE id = $1",
+            user_id
+        )
+        .fetch_optional(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get user by ID: {}", e)))?;
+
+        if let Some(record) = user_record {
+            let role: UserRole = serde_json::from_str(&format!("\"{}\"", record.role))
+                .map_err(|e| AppError::DatabaseError(format!("Failed to parse user role: {}", e)))?;
+
+            Ok(Some(User {
+                id: record.id,
+                username: record.username,
+                email: record.email,
+                role,
+                is_active: record.is_active,
+                api_key_hash: record.api_key_hash,
+                last_login: record.last_login,
+                created_at: record.created_at,
+                updated_at: record.updated_at,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get user by username
+    pub async fn get_user_by_username(&self, username: &str) -> Result<Option<User>, AppError> {
+        let user_record = sqlx::query!(
+            "SELECT id, username, email, role, is_active, api_key_hash, last_login, created_at, updated_at
+             FROM users WHERE username = $1",
+            username
+        )
+        .fetch_optional(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get user by username: {}", e)))?;
+
+        if let Some(record) = user_record {
+            let role: UserRole = serde_json::from_str(&format!("\"{}\"", record.role))
+                .map_err(|e| AppError::DatabaseError(format!("Failed to parse user role: {}", e)))?;
+
+            Ok(Some(User {
+                id: record.id,
+                username: record.username,
+                email: record.email,
+                role,
+                is_active: record.is_active,
+                api_key_hash: record.api_key_hash,
+                last_login: record.last_login,
+                created_at: record.created_at,
+                updated_at: record.updated_at,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }
 

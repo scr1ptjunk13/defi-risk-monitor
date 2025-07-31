@@ -18,9 +18,9 @@ CREATE INDEX IF NOT EXISTS idx_pool_states_chain_id ON pool_states(chain_id);
 CREATE INDEX IF NOT EXISTS idx_pool_states_timestamp ON pool_states(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_pool_states_pool_chain_time ON pool_states(pool_address, chain_id, timestamp DESC);
 
--- Risk metrics table indexes (if exists)
-CREATE INDEX IF NOT EXISTS idx_risk_metrics_position_id ON risk_metrics(position_id) WHERE EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'risk_metrics');
-CREATE INDEX IF NOT EXISTS idx_risk_metrics_calculated_at ON risk_metrics(calculated_at DESC) WHERE EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'risk_metrics');
+-- Risk metrics table indexes (conditional creation removed due to PostgreSQL limitations)
+-- CREATE INDEX IF NOT EXISTS idx_risk_metrics_position_id ON risk_metrics(position_id);
+-- CREATE INDEX IF NOT EXISTS idx_risk_metrics_calculated_at ON risk_metrics(calculated_at DESC);
 
 -- MEV risks table indexes
 CREATE INDEX IF NOT EXISTS idx_mev_risks_pool_address ON mev_risks(pool_address);
