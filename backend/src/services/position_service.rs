@@ -1,9 +1,11 @@
-use crate::models::{Position, CreatePosition};
+use crate::models::{Position, CreatePosition, UpdatePosition};
 use crate::services::BlockchainService;
 use crate::error::AppError;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use tracing::{info, warn};
 use uuid::Uuid;
+use chrono::{DateTime, Utc};
+use bigdecimal::BigDecimal;
 
 /// Service for managing positions with entry price tracking
 pub struct PositionService {
@@ -205,6 +207,238 @@ impl PositionService {
               position_id, token0_price, token1_price);
 
         Ok(())
+    }
+
+    /// Update position amounts and liquidity
+    pub async fn update_position(&self, position_id: Uuid, update: UpdatePosition) -> Result<Position, AppError> {
+        info!("Updating position {}", position_id);
+
+        // Build dynamic query based on what fields are being updated
+        let mut query_parts = Vec::new();
+        let mut param_count = 1;
+
+        if update.token0_amount.is_some() {
+            query_parts.push(format!("token0_amount = ${}", param_count));
+            param_count += 1;
+        }
+        if update.token1_amount.is_some() {
+            query_parts.push(format!("token1_amount = ${}", param_count));
+            param_count += 1;
+        }
+        if update.liquidity.is_some() {
+            query_parts.push(format!("liquidity = ${}", param_count));
+            param_count += 1;
+        }
+
+        if query_parts.is_empty() {
+            return Err(AppError::ValidationError("No fields to update".to_string()));
+        }
+
+        query_parts.push("updated_at = NOW()".to_string());
+        let set_clause = query_parts.join(", ");
+        
+        let query = format!(
+            "UPDATE positions SET {} WHERE id = ${} RETURNING *",
+            set_clause, param_count
+        );
+
+        let mut query_builder = sqlx::query_as::<_, Position>(&query);
+        
+        if let Some(token0_amount) = &update.token0_amount {
+            query_builder = query_builder.bind(token0_amount);
+        }
+        if let Some(token1_amount) = &update.token1_amount {
+            query_builder = query_builder.bind(token1_amount);
+        }
+        if let Some(liquidity) = &update.liquidity {
+            query_builder = query_builder.bind(liquidity);
+        }
+        query_builder = query_builder.bind(position_id);
+
+        let updated_position = query_builder
+            .fetch_one(&self.db_pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(format!("Failed to update position: {}", e)))?;
+
+        info!("Successfully updated position {}", position_id);
+        Ok(updated_position)
+    }
+
+    /// Delete position by ID
+    pub async fn delete_position(&self, position_id: Uuid) -> Result<(), AppError> {
+        info!("Deleting position {}", position_id);
+
+        let result = sqlx::query!(
+            "DELETE FROM positions WHERE id = $1",
+            position_id
+        )
+        .execute(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to delete position: {}", e)))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!("Position {} not found", position_id)));
+        }
+
+        info!("Successfully deleted position {}", position_id);
+        Ok(())
+    }
+
+    /// Get position by ID (alias for existing get_position method)
+    pub async fn get_position_by_id(&self, position_id: Uuid) -> Result<Option<Position>, AppError> {
+        self.get_position(position_id).await
+    }
+
+    /// Get all positions for a specific pool
+    pub async fn get_positions_by_pool(&self, pool_address: &str, chain_id: Option<i32>) -> Result<Vec<Position>, AppError> {
+        info!("Getting positions for pool {} on chain {:?}", pool_address, chain_id);
+
+        let positions = if let Some(chain_id) = chain_id {
+            sqlx::query_as!(
+                Position,
+                "SELECT * FROM positions WHERE pool_address = $1 AND chain_id = $2 ORDER BY created_at DESC",
+                pool_address,
+                chain_id
+            )
+            .fetch_all(&self.db_pool)
+            .await
+        } else {
+            sqlx::query_as!(
+                Position,
+                "SELECT * FROM positions WHERE pool_address = $1 ORDER BY created_at DESC",
+                pool_address
+            )
+            .fetch_all(&self.db_pool)
+            .await
+        }
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get positions by pool: {}", e)))?;
+
+        info!("Found {} positions for pool {}", positions.len(), pool_address);
+        Ok(positions)
+    }
+
+    /// Get all positions for a specific protocol
+    pub async fn get_positions_by_protocol(&self, protocol: &str, chain_id: Option<i32>) -> Result<Vec<Position>, AppError> {
+        info!("Getting positions for protocol {} on chain {:?}", protocol, chain_id);
+
+        let positions = if let Some(chain_id) = chain_id {
+            sqlx::query_as!(
+                Position,
+                "SELECT * FROM positions WHERE protocol = $1 AND chain_id = $2 ORDER BY created_at DESC",
+                protocol,
+                chain_id
+            )
+            .fetch_all(&self.db_pool)
+            .await
+        } else {
+            sqlx::query_as!(
+                Position,
+                "SELECT * FROM positions WHERE protocol = $1 ORDER BY created_at DESC",
+                protocol
+            )
+            .fetch_all(&self.db_pool)
+            .await
+        }
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get positions by protocol: {}", e)))?;
+
+        info!("Found {} positions for protocol {}", positions.len(), protocol);
+        Ok(positions)
+    }
+
+    /// Get historical positions (older than specified date)
+    pub async fn get_historical_positions(&self, before_date: DateTime<Utc>, limit: Option<i64>) -> Result<Vec<Position>, AppError> {
+        info!("Getting historical positions before {}", before_date);
+
+        let limit = limit.unwrap_or(1000); // Default limit to prevent huge queries
+
+        let positions = sqlx::query_as!(
+            Position,
+            "SELECT * FROM positions WHERE created_at < $1 ORDER BY created_at DESC LIMIT $2",
+            before_date,
+            limit
+        )
+        .fetch_all(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get historical positions: {}", e)))?;
+
+        info!("Found {} historical positions before {}", positions.len(), before_date);
+        Ok(positions)
+    }
+
+    /// Archive old positions (move to archive table or mark as archived)
+    pub async fn archive_old_positions(&self, before_date: DateTime<Utc>) -> Result<u64, AppError> {
+        info!("Archiving positions older than {}", before_date);
+
+        // First, let's create an archive table if it doesn't exist
+        sqlx::query!(
+            r#"
+            CREATE TABLE IF NOT EXISTS positions_archive (
+                LIKE positions INCLUDING ALL
+            )
+            "#
+        )
+        .execute(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to create archive table: {}", e)))?;
+
+        // Move old positions to archive table using dynamic SQL
+        let result = sqlx::query(
+            r#"
+            WITH moved_positions AS (
+                DELETE FROM positions 
+                WHERE created_at < $1 
+                RETURNING *
+            )
+            INSERT INTO positions_archive 
+            SELECT * FROM moved_positions
+            "#
+        )
+        .bind(before_date)
+        .execute(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to archive positions: {}", e)))?;
+
+        let archived_count = result.rows_affected();
+        info!("Successfully archived {} positions older than {}", archived_count, before_date);
+        Ok(archived_count)
+    }
+
+    /// Get positions count by status/filters (utility method)
+    pub async fn get_positions_count(&self, user_address: Option<&str>, protocol: Option<&str>, pool_address: Option<&str>) -> Result<i64, AppError> {
+        let mut query = "SELECT COUNT(*) as count FROM positions WHERE 1=1".to_string();
+        let mut param_count = 1;
+        
+        if user_address.is_some() {
+            query.push_str(&format!(" AND user_address = ${}", param_count));
+            param_count += 1;
+        }
+        if protocol.is_some() {
+            query.push_str(&format!(" AND protocol = ${}", param_count));
+            param_count += 1;
+        }
+        if pool_address.is_some() {
+            query.push_str(&format!(" AND pool_address = ${}", param_count));
+        }
+
+        let mut query_builder = sqlx::query(&query);
+        
+        if let Some(addr) = user_address {
+            query_builder = query_builder.bind(addr);
+        }
+        if let Some(proto) = protocol {
+            query_builder = query_builder.bind(proto);
+        }
+        if let Some(pool) = pool_address {
+            query_builder = query_builder.bind(pool);
+        }
+
+        let row = query_builder
+            .fetch_one(&self.db_pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(format!("Failed to get positions count: {}", e)))?;
+
+        let count: i64 = row.get("count");
+        Ok(count)
     }
 }
 
