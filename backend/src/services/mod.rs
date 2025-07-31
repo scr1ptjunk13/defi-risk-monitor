@@ -27,6 +27,7 @@ pub mod yield_farming_service;
 pub mod comparative_analytics_service;
 pub mod portfolio_service;
 pub mod risk_assessment_service;
+pub mod risk_analytics_service;
 
 pub use blockchain_service::*;
 pub use contract_bindings::*;
