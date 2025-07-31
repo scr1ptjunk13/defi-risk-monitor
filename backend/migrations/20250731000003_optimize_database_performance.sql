@@ -29,19 +29,17 @@ CREATE INDEX IF NOT EXISTS idx_mev_risks_created_at ON mev_risks(created_at DESC
 CREATE INDEX IF NOT EXISTS idx_mev_risks_pool_chain ON mev_risks(pool_address, chain_id);
 CREATE INDEX IF NOT EXISTS idx_mev_risks_overall_risk ON mev_risks(overall_mev_risk DESC);
 
--- MEV transactions table indexes
-CREATE INDEX IF NOT EXISTS idx_mev_transactions_hash ON mev_transactions(transaction_hash);
-CREATE INDEX IF NOT EXISTS idx_mev_transactions_block ON mev_transactions(block_number);
-CREATE INDEX IF NOT EXISTS idx_mev_transactions_chain ON mev_transactions(chain_id);
-CREATE INDEX IF NOT EXISTS idx_mev_transactions_type ON mev_transactions(mev_type);
-CREATE INDEX IF NOT EXISTS idx_mev_transactions_severity ON mev_transactions(severity);
-CREATE INDEX IF NOT EXISTS idx_mev_transactions_detected_at ON mev_transactions(detected_at DESC);
+-- MEV transactions table indexes (conditional - only if table exists)
+-- CREATE INDEX IF NOT EXISTS idx_mev_transactions_hash ON mev_transactions(transaction_hash);
+-- CREATE INDEX IF NOT EXISTS idx_mev_transactions_block ON mev_transactions(block_number);
+-- CREATE INDEX IF NOT EXISTS idx_mev_transactions_chain ON mev_transactions(chain_id);
+-- CREATE INDEX IF NOT EXISTS idx_mev_transactions_type ON mev_transactions(mev_type);
+-- CREATE INDEX IF NOT EXISTS idx_mev_transactions_severity ON mev_transactions(severity);
 
--- Oracle deviations table indexes
-CREATE INDEX IF NOT EXISTS idx_oracle_deviations_oracle_address ON oracle_deviations(oracle_address);
-CREATE INDEX IF NOT EXISTS idx_oracle_deviations_chain_id ON oracle_deviations(chain_id);
-CREATE INDEX IF NOT EXISTS idx_oracle_deviations_severity ON oracle_deviations(severity);
-CREATE INDEX IF NOT EXISTS idx_oracle_deviations_detected_at ON oracle_deviations(detected_at DESC);
+-- Oracle deviations table indexes (conditional - only if table exists)
+-- CREATE INDEX IF NOT EXISTS idx_oracle_deviations_oracle_address ON oracle_deviations(oracle_address);
+-- CREATE INDEX IF NOT EXISTS idx_oracle_deviations_chain_id ON oracle_deviations(chain_id);
+-- CREATE INDEX IF NOT EXISTS idx_oracle_deviations_severity ON oracle_deviations(severity);
 
 -- Cross-chain risks table indexes
 CREATE INDEX IF NOT EXISTS idx_cross_chain_risks_position_id ON cross_chain_risks(position_id);
@@ -50,13 +48,13 @@ CREATE INDEX IF NOT EXISTS idx_cross_chain_risks_created_at ON cross_chain_risks
 CREATE INDEX IF NOT EXISTS idx_cross_chain_risks_overall_risk ON cross_chain_risks(overall_cross_chain_risk DESC);
 
 -- Bridge risks table indexes
-CREATE INDEX IF NOT EXISTS idx_bridge_risks_bridge_address ON bridge_risks(bridge_address);
-CREATE INDEX IF NOT EXISTS idx_bridge_risks_chain_id ON bridge_risks(chain_id);
-CREATE INDEX IF NOT EXISTS idx_bridge_risks_risk_score ON bridge_risks(risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_bridge_risks_bridge_protocol ON bridge_risks(bridge_protocol);
+CREATE INDEX IF NOT EXISTS idx_bridge_risks_source_chain ON bridge_risks(source_chain_id);
+CREATE INDEX IF NOT EXISTS idx_bridge_risks_overall_risk ON bridge_risks(overall_bridge_risk DESC);
 
 -- Chain risks table indexes
 CREATE INDEX IF NOT EXISTS idx_chain_risks_chain_id ON chain_risks(chain_id);
-CREATE INDEX IF NOT EXISTS idx_chain_risks_risk_score ON chain_risks(risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_chain_risks_overall_risk ON chain_risks(overall_chain_risk DESC);
 
 -- Protocol risks table indexes
 CREATE INDEX IF NOT EXISTS idx_protocol_risks_protocol_name ON protocol_risks(protocol_name);
@@ -77,17 +75,17 @@ CREATE INDEX IF NOT EXISTS idx_user_risk_configs_user_address ON user_risk_confi
 CREATE INDEX IF NOT EXISTS idx_user_risk_configs_is_active ON user_risk_configs(is_active);
 CREATE INDEX IF NOT EXISTS idx_user_risk_configs_user_active ON user_risk_configs(user_address, is_active);
 
--- Webhooks table indexes
-CREATE INDEX IF NOT EXISTS idx_webhooks_user_address ON webhooks(user_address);
-CREATE INDEX IF NOT EXISTS idx_webhooks_is_active ON webhooks(is_active);
-CREATE INDEX IF NOT EXISTS idx_webhooks_user_active ON webhooks(user_address, is_active);
+-- Webhooks table indexes (commented out - table doesn't exist yet)
+-- CREATE INDEX IF NOT EXISTS idx_webhooks_user_address ON webhooks(user_address);
+-- CREATE INDEX IF NOT EXISTS idx_webhooks_is_active ON webhooks(is_active);
+-- CREATE INDEX IF NOT EXISTS idx_webhooks_user_active ON webhooks(user_address, is_active);
 
 -- Alerts table indexes
-CREATE INDEX IF NOT EXISTS idx_alerts_user_address ON alerts(user_address);
-CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
+CREATE INDEX IF NOT EXISTS idx_alerts_position_id ON alerts(position_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_is_resolved ON alerts(is_resolved);
 CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
 CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_alerts_user_status ON alerts(user_address, status);
+CREATE INDEX IF NOT EXISTS idx_alerts_position_resolved ON alerts(position_id, is_resolved);
 
 -- Price history table indexes
 CREATE INDEX IF NOT EXISTS idx_price_history_token_address ON price_history(token_address);
@@ -102,8 +100,8 @@ CREATE INDEX IF NOT EXISTS idx_mev_risks_comprehensive ON mev_risks(pool_address
 
 -- Partial indexes for active records only
 CREATE INDEX IF NOT EXISTS idx_active_user_risk_configs ON user_risk_configs(user_address, updated_at DESC) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_active_webhooks ON webhooks(user_address, endpoint_url) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_unresolved_alerts ON alerts(user_address, created_at DESC) WHERE status != 'resolved';
+-- CREATE INDEX IF NOT EXISTS idx_active_webhooks ON webhooks(user_address, endpoint_url) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_unresolved_alerts ON alerts(position_id, created_at DESC) WHERE is_resolved = false;
 
 -- GIN indexes for JSONB columns
 CREATE INDEX IF NOT EXISTS idx_audit_logs_metadata_gin ON audit_logs USING GIN(metadata);
@@ -119,18 +117,18 @@ ANALYZE cross_chain_risks;
 ANALYZE protocol_risks;
 ANALYZE audit_logs;
 ANALYZE user_risk_configs;
-ANALYZE webhooks;
+-- ANALYZE webhooks;
 ANALYZE alerts;
 ANALYZE price_history;
 
 -- Create materialized views for expensive aggregations
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_user_position_summary AS
 SELECT 
-    user_address,
-    protocol,
-    chain_id,
+    p.user_address,
+    p.protocol,
+    p.chain_id,
     COUNT(*) as position_count,
-    SUM(token0_amount * COALESCE(ps.token0_price_usd, 0) + token1_amount * COALESCE(ps.token1_price_usd, 0)) as total_value_usd,
+    SUM(p.token0_amount * COALESCE(ps.token0_price_usd, 0) + p.token1_amount * COALESCE(ps.token1_price_usd, 0)) as total_value_usd,
     AVG(COALESCE(ps.tvl_usd, 0)) as avg_pool_tvl,
     MAX(p.created_at) as last_position_created
 FROM positions p
@@ -141,7 +139,7 @@ WHERE ps.timestamp = (
     WHERE ps2.pool_address = ps.pool_address 
     AND ps2.chain_id = ps.chain_id
 )
-GROUP BY user_address, protocol, chain_id;
+GROUP BY p.user_address, p.protocol, p.chain_id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_user_position_summary_unique 
 ON mv_user_position_summary(user_address, protocol, chain_id);

@@ -10,6 +10,7 @@ pub mod cross_chain_risk;
 pub mod user_risk_config;
 pub mod risk_explanation;
 pub mod protocol_events;
+pub mod risk_assessment;
 
 pub use alert::*;
 pub use alert_threshold::*;
@@ -21,3 +22,4 @@ pub use protocol_risk::*;
 pub use mev_risk::*;
 pub use cross_chain_risk::*;
 pub use user_risk_config::*;
+pub use risk_assessment::*;

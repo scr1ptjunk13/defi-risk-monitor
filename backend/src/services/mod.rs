@@ -26,6 +26,7 @@ pub mod pool_performance_service;
 pub mod yield_farming_service;
 pub mod comparative_analytics_service;
 pub mod portfolio_service;
+pub mod risk_assessment_service;
 
 pub use blockchain_service::*;
 pub use contract_bindings::*;
@@ -49,3 +50,4 @@ pub use lp_analytics_service::*;
 pub use pool_performance_service::*;
 pub use yield_farming_service::*;
 pub use comparative_analytics_service::*;
+pub use risk_assessment_service::*;

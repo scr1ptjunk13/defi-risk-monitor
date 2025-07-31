@@ -58,16 +58,19 @@ CREATE INDEX IF NOT EXISTS idx_user_settings_preferred_currency ON user_settings
 CREATE INDEX IF NOT EXISTS idx_user_risk_preferences_user_id ON user_risk_preferences(user_id);
 
 -- Create updated_at triggers
+DROP TRIGGER IF EXISTS update_user_settings_updated_at ON user_settings;
 CREATE TRIGGER update_user_settings_updated_at 
     BEFORE UPDATE ON user_settings 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_user_addresses_updated_at ON user_addresses;
 CREATE TRIGGER update_user_addresses_updated_at 
     BEFORE UPDATE ON user_addresses 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_user_risk_preferences_updated_at ON user_risk_preferences;
 CREATE TRIGGER update_user_risk_preferences_updated_at 
     BEFORE UPDATE ON user_risk_preferences 
     FOR EACH ROW 

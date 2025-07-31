@@ -70,15 +70,15 @@
 # ENVIRONMENT & SECRETS
 # ================================
 
-Environment files (CRITICAL - NEVER COMMIT SECRETS!)
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-/backend/.env
-/frontend/.env.local
-/contracts/.env
+# Environment files (CRITICAL - NEVER COMMIT SECRETS!)
+# .env
+# .env.local
+# .env.development.local
+# .env.test.local
+# .env.production.local
+# /backend/.env
+# /frontend/.env.local
+# /contracts/.env
 
 # API keys and secrets
 *.key
