@@ -494,7 +494,15 @@ impl WebhookService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::setup_test_db;
+
+    async fn setup_test_db() -> sqlx::PgPool {
+        let database_url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgresql://postgres:password@localhost:5434/defi_risk_monitor".to_string());
+        
+        sqlx::PgPool::connect(&database_url)
+            .await
+            .expect("Failed to connect to test database")
+    }
 
     #[tokio::test]
     async fn test_webhook_creation() {

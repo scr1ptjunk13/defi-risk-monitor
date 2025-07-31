@@ -517,7 +517,7 @@ mod tests {
         let mut analyzer = StaticAnalyzer::new();
         
         let mut temp_file = NamedTempFile::new().unwrap();
-        writeln!(temp_file, "let query = format!(\"SELECT * FROM users WHERE id = {}\", user_id);").unwrap();
+        writeln!(temp_file, "let query = format!(\"SELECT * FROM users WHERE id = {{}}\", user_id);").unwrap();
         writeln!(temp_file, "sqlx::query(&query).execute(&pool).await;").unwrap();
         
         let result = analyzer.analyze_file(temp_file.path()).unwrap();

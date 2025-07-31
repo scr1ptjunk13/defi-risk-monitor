@@ -3,11 +3,19 @@ use crate::models::PoolState;
 use crate::error::AppError;
 use bigdecimal::{BigDecimal, Zero};
 use sqlx::PgPool;
-use tracing::info;
 use std::str::FromStr;
-// use chrono::{Utc, Duration};
-// use uuid::Uuid;
-// use std::collections::HashMap;
+use tracing::info;
+use uuid::Uuid;
+use chrono::Utc;
+
+#[derive(Debug, Clone)]
+struct ChainLiquidityMetrics {
+    tvl: BigDecimal,
+    volume_24h: BigDecimal,
+    pool_count: i32,
+    avg_pool_size: BigDecimal,
+    liquidity_utilization: BigDecimal,
+}
 
 /// Cross-chain risk detection and assessment service
 pub struct CrossChainRiskService {
@@ -143,48 +151,81 @@ impl CrossChainRiskService {
     }
 
     /// Calculate liquidity fragmentation risk across chains
-    async fn calculate_liquidity_fragmentation_risk(
+    pub async fn calculate_liquidity_fragmentation_risk(
         &self,
         pool_states: &[PoolState],
     ) -> Result<BigDecimal, AppError> {
-        if pool_states.len() <= 1 {
-            return Ok(BigDecimal::zero()); // No fragmentation with single pool
+        if pool_states.is_empty() {
+            return Ok(BigDecimal::zero());
         }
 
-        // Calculate total liquidity across all chains
-        let total_tvl: BigDecimal = pool_states
-            .iter()
-            .filter_map(|pool| pool.tvl_usd.as_ref())
-            .sum();
+        // Group pools by chain and calculate comprehensive metrics
+        let mut chain_metrics: std::collections::HashMap<i32, ChainLiquidityMetrics> = std::collections::HashMap::new();
+        let mut total_tvl = BigDecimal::zero();
+        let mut total_volume_24h = BigDecimal::zero();
+
+        let zero_decimal = BigDecimal::zero();
+        for pool in pool_states {
+            let pool_tvl = pool.tvl_usd.as_ref().unwrap_or(&zero_decimal);
+            let pool_volume = pool.volume_24h_usd.as_ref().unwrap_or(&zero_decimal);
+            
+            let metrics = chain_metrics.entry(pool.chain_id).or_insert_with(|| ChainLiquidityMetrics {
+                tvl: BigDecimal::zero(),
+                volume_24h: BigDecimal::zero(),
+                pool_count: 0,
+                avg_pool_size: BigDecimal::zero(),
+                liquidity_utilization: BigDecimal::zero(),
+            });
+            
+            metrics.tvl += pool_tvl;
+            metrics.volume_24h += pool_volume;
+            metrics.pool_count += 1;
+            
+            total_tvl += pool_tvl;
+            total_volume_24h += pool_volume;
+        }
 
         if total_tvl.is_zero() {
-            return Ok(BigDecimal::from_str("0.8").unwrap()); // High risk for zero liquidity
+            return Ok(BigDecimal::zero());
         }
 
-        // Calculate liquidity distribution (Gini coefficient approach)
-        let mut tvl_values: Vec<BigDecimal> = pool_states
-            .iter()
-            .filter_map(|pool| pool.tvl_usd.as_ref())
-            .cloned()
-            .collect();
-        
-        tvl_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        // Calculate derived metrics for each chain
+        for metrics in chain_metrics.values_mut() {
+            metrics.avg_pool_size = if metrics.pool_count > 0 {
+                &metrics.tvl / BigDecimal::from(metrics.pool_count)
+            } else {
+                BigDecimal::zero()
+            };
+            
+            metrics.liquidity_utilization = if !metrics.tvl.is_zero() {
+                &metrics.volume_24h / &metrics.tvl
+            } else {
+                BigDecimal::zero()
+            };
+        }
 
-        let fragmentation_score = self.calculate_liquidity_gini_coefficient(&tvl_values, &total_tvl);
-        
-        // Convert fragmentation score to risk (higher fragmentation = higher risk)
-        let fragmentation_risk = if fragmentation_score > self.config.fragmentation_critical_threshold {
-            BigDecimal::from_str("0.9").unwrap() // Critical fragmentation
-        } else if fragmentation_score > self.config.fragmentation_warning_threshold {
-            // Scale between warning and critical thresholds
-            let ratio = (&fragmentation_score - &self.config.fragmentation_warning_threshold) /
-                       (&self.config.fragmentation_critical_threshold - &self.config.fragmentation_warning_threshold);
-            BigDecimal::from_str("0.3").unwrap() + (ratio * BigDecimal::from_str("0.6").unwrap())
-        } else {
-            BigDecimal::from_str("0.1").unwrap() // Low fragmentation risk
-        };
+        // Calculate multiple fragmentation risk components
+        let tvl_fragmentation = self.calculate_tvl_fragmentation_risk(&chain_metrics, &total_tvl);
+        let volume_fragmentation = self.calculate_volume_fragmentation_risk(&chain_metrics, &total_volume_24h);
+        let chain_diversity_risk = self.calculate_chain_diversity_risk(chain_metrics.len());
+        let utilization_imbalance = self.calculate_utilization_imbalance_risk(&chain_metrics);
+        let bridge_dependency_risk = self.calculate_bridge_dependency_risk(&chain_metrics).await?;
 
-        Ok(fragmentation_risk)
+        // Weighted combination of all fragmentation factors
+        let weights = [
+            (&tvl_fragmentation, 0.30),
+            (&volume_fragmentation, 0.25), 
+            (&chain_diversity_risk, 0.20),
+            (&utilization_imbalance, 0.15),
+            (&bridge_dependency_risk, 0.10),
+        ];
+        
+        let overall_fragmentation_risk: BigDecimal = weights.iter()
+            .map(|(risk, weight)| *risk * BigDecimal::from_str(&weight.to_string()).unwrap())
+            .sum();
+
+        // Cap at 1.0
+        Ok(overall_fragmentation_risk.min(BigDecimal::from(1)))
     }
 
     /// Calculate governance divergence risk between chains
@@ -344,26 +385,90 @@ impl CrossChainRiskService {
         source_chain_id: i32,
         destination_chain_id: i32,
     ) -> Result<BridgeSecurityAssessment, AppError> {
-        // Simplified implementation - in production this would query bridge data
-        Ok(BridgeSecurityAssessment {
-            bridge_protocol: format!("Bridge-{}-{}", source_chain_id, destination_chain_id),
-            security_score: BigDecimal::from_str("0.8").unwrap(),
-            audit_score: BigDecimal::from_str("0.85").unwrap(),
-            tvl_score: BigDecimal::from_str("0.7").unwrap(),
-            decentralization_score: BigDecimal::from_str("0.6").unwrap(),
-            exploit_history_score: BigDecimal::from_str("0.9").unwrap(),
-            overall_score: BigDecimal::from_str("0.78").unwrap(),
-        })
+        // Query database for bridge risk data
+        let bridge_risk = sqlx::query_as!(
+            BridgeRisk,
+            r#"
+            SELECT id, bridge_protocol, source_chain_id, destination_chain_id,
+                   security_score, tvl_locked, exploit_history_count, audit_score,
+                   decentralization_score, overall_bridge_risk, last_assessment
+            FROM bridge_risks
+            WHERE source_chain_id = $1 AND destination_chain_id = $2
+            ORDER BY last_assessment DESC
+            LIMIT 1
+            "#,
+            source_chain_id,
+            destination_chain_id
+        )
+        .fetch_optional(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get bridge assessment: {}", e)))?;
+
+        if let Some(bridge) = bridge_risk {
+            // Use existing bridge assessment data
+            let tvl_score = bridge.tvl_locked
+                .map(|tvl| self.calculate_tvl_risk_score(&tvl))
+                .unwrap_or_else(|| BigDecimal::from_str("0.5").unwrap());
+            
+            let exploit_history_score = self.calculate_exploit_history_score(bridge.exploit_history_count);
+
+            Ok(BridgeSecurityAssessment {
+                bridge_protocol: bridge.bridge_protocol,
+                security_score: bridge.security_score,
+                audit_score: bridge.audit_score,
+                tvl_score,
+                decentralization_score: bridge.decentralization_score,
+                exploit_history_score,
+                overall_score: bridge.overall_bridge_risk,
+            })
+        } else {
+            // Create default assessment for unknown bridge pairs
+            let bridge_protocol = self.identify_bridge_protocol(source_chain_id, destination_chain_id);
+            let security_score = self.estimate_bridge_security(source_chain_id, destination_chain_id);
+            let audit_score = self.estimate_audit_score(&bridge_protocol);
+            let tvl_score = BigDecimal::from_str("0.5").unwrap(); // Default medium risk
+            let decentralization_score = self.estimate_decentralization_score(&bridge_protocol);
+            let exploit_history_score = BigDecimal::from_str("0.8").unwrap(); // Assume no known exploits
+            
+            let overall_score = self.calculate_bridge_overall_score(
+                &security_score, &audit_score, &tvl_score, 
+                &decentralization_score, &exploit_history_score
+            );
+
+            Ok(BridgeSecurityAssessment {
+                bridge_protocol,
+                security_score,
+                audit_score,
+                tvl_score,
+                decentralization_score,
+                exploit_history_score,
+                overall_score,
+            })
+        }
     }
 
     async fn get_chain_governance_score(&self, chain_id: i32) -> Result<BigDecimal, AppError> {
-        // Simplified implementation - in production this would query chain governance data
-        match chain_id {
-            1 => Ok(BigDecimal::from_str("0.85").unwrap()), // Ethereum
-            137 => Ok(BigDecimal::from_str("0.75").unwrap()), // Polygon
-            56 => Ok(BigDecimal::from_str("0.65").unwrap()), // BSC
-            43114 => Ok(BigDecimal::from_str("0.70").unwrap()), // Avalanche
-            _ => Ok(BigDecimal::from_str("0.60").unwrap()), // Default for other chains
+        // Query database for chain governance data
+        let chain_risk = sqlx::query_as!(
+            ChainRisk,
+            "SELECT id, chain_id, chain_name, network_security_score, validator_decentralization, governance_risk, technical_maturity, ecosystem_health, liquidity_depth, overall_chain_risk, last_updated FROM chain_risks WHERE chain_id = $1",
+            chain_id
+        )
+        .fetch_optional(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get chain governance: {}", e)))?;
+
+        if let Some(chain) = chain_risk {
+            Ok(chain.governance_risk)
+        } else {
+            // Fallback to hardcoded values for known chains
+            match chain_id {
+                1 => Ok(BigDecimal::from_str("0.85").unwrap()), // Ethereum
+                137 => Ok(BigDecimal::from_str("0.75").unwrap()), // Polygon
+                56 => Ok(BigDecimal::from_str("0.65").unwrap()), // BSC
+                43114 => Ok(BigDecimal::from_str("0.70").unwrap()), // Avalanche
+                _ => Ok(BigDecimal::from_str("0.60").unwrap()), // Default for other chains
+            }
         }
     }
 
@@ -506,21 +611,252 @@ impl CrossChainRiskService {
     }
 
     /// Store cross-chain risk assessment to database
-    pub async fn store_cross_chain_risk(&self, _cross_chain_risk: &CrossChainRisk) -> Result<(), AppError> {
-        // Simplified implementation for now - in production this would store to database
-        // TODO: Implement actual database storage once schema is finalized
+    pub async fn store_cross_chain_risk(&self, cross_chain_risk: &CrossChainRisk) -> Result<(), AppError> {
+        sqlx::query!(
+            r#"
+            INSERT INTO cross_chain_risks (
+                id, position_id, primary_chain_id, secondary_chain_ids,
+                bridge_risk_score, liquidity_fragmentation_risk, governance_divergence_risk,
+                technical_risk_score, correlation_risk_score, overall_cross_chain_risk,
+                confidence_score, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ON CONFLICT (id) DO UPDATE SET
+                bridge_risk_score = EXCLUDED.bridge_risk_score,
+                liquidity_fragmentation_risk = EXCLUDED.liquidity_fragmentation_risk,
+                governance_divergence_risk = EXCLUDED.governance_divergence_risk,
+                technical_risk_score = EXCLUDED.technical_risk_score,
+                correlation_risk_score = EXCLUDED.correlation_risk_score,
+                overall_cross_chain_risk = EXCLUDED.overall_cross_chain_risk,
+                confidence_score = EXCLUDED.confidence_score,
+                updated_at = EXCLUDED.updated_at
+            "#,
+            cross_chain_risk.id,
+            cross_chain_risk.position_id,
+            cross_chain_risk.primary_chain_id,
+            &cross_chain_risk.secondary_chain_ids,
+            cross_chain_risk.bridge_risk_score,
+            cross_chain_risk.liquidity_fragmentation_risk,
+            cross_chain_risk.governance_divergence_risk,
+            cross_chain_risk.technical_risk_score,
+            cross_chain_risk.correlation_risk_score,
+            cross_chain_risk.overall_cross_chain_risk,
+            cross_chain_risk.confidence_score,
+            cross_chain_risk.created_at,
+            cross_chain_risk.updated_at
+        )
+        .execute(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to store cross-chain risk: {}", e)))?;
+
         Ok(())
     }
 
     /// Get cached cross-chain risk assessment
     pub async fn get_cross_chain_risk(
         &self,
-        _primary_chain_id: i32,
-        _secondary_chain_ids: &[i32],
+        primary_chain_id: i32,
+        secondary_chain_ids: &[i32],
     ) -> Result<Option<CrossChainRisk>, AppError> {
-        // Simplified implementation for now - in production this would query the database
-        // TODO: Implement actual database query once schema is finalized
-        Ok(None)
+        let result = sqlx::query_as!(
+            CrossChainRisk,
+            r#"
+            SELECT id, position_id, primary_chain_id, secondary_chain_ids,
+                   bridge_risk_score, liquidity_fragmentation_risk, governance_divergence_risk,
+                   technical_risk_score, correlation_risk_score, overall_cross_chain_risk,
+                   confidence_score, created_at, updated_at
+            FROM cross_chain_risks
+            WHERE primary_chain_id = $1 AND secondary_chain_ids = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
+            primary_chain_id,
+            secondary_chain_ids
+        )
+        .fetch_optional(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(format!("Failed to get cross-chain risk: {}", e)))?;
+
+        Ok(result)
+    }
+
+    // Bridge assessment helper methods
+    fn identify_bridge_protocol(&self, source_chain_id: i32, destination_chain_id: i32) -> String {
+        match (source_chain_id, destination_chain_id) {
+            (1, 137) | (137, 1) => "Polygon Bridge".to_string(),
+            (1, 56) | (56, 1) => "BSC Bridge".to_string(),
+            (1, 43114) | (43114, 1) => "Avalanche Bridge".to_string(),
+            (1, 42161) | (42161, 1) => "Arbitrum Bridge".to_string(),
+            (1, 10) | (10, 1) => "Optimism Bridge".to_string(),
+            _ => format!("Generic Bridge {}-{}", source_chain_id, destination_chain_id),
+        }
+    }
+
+    fn estimate_bridge_security(&self, source_chain_id: i32, destination_chain_id: i32) -> BigDecimal {
+        // Security based on chain maturity and bridge type
+        let source_security = match source_chain_id {
+            1 => 0.95,   // Ethereum - highest security
+            42161 | 10 => 0.90, // L2s inherit Ethereum security
+            137 => 0.80, // Polygon
+            43114 => 0.85, // Avalanche
+            56 => 0.70,  // BSC
+            _ => 0.60,   // Unknown chains
+        };
+        
+        let dest_security = match destination_chain_id {
+            1 => 0.95, 42161 | 10 => 0.90, 137 => 0.80,
+            43114 => 0.85, 56 => 0.70, _ => 0.60,
+        };
+        
+        BigDecimal::from_str(&((source_security + dest_security) / 2.0).to_string()).unwrap()
+    }
+
+    fn estimate_audit_score(&self, bridge_protocol: &str) -> BigDecimal {
+        match bridge_protocol {
+            p if p.contains("Polygon") => BigDecimal::from_str("0.90").unwrap(),
+            p if p.contains("Arbitrum") => BigDecimal::from_str("0.95").unwrap(),
+            p if p.contains("Optimism") => BigDecimal::from_str("0.95").unwrap(),
+            p if p.contains("Avalanche") => BigDecimal::from_str("0.85").unwrap(),
+            p if p.contains("BSC") => BigDecimal::from_str("0.75").unwrap(),
+            _ => BigDecimal::from_str("0.70").unwrap(),
+        }
+    }
+
+    fn estimate_decentralization_score(&self, bridge_protocol: &str) -> BigDecimal {
+        match bridge_protocol {
+            p if p.contains("Arbitrum") || p.contains("Optimism") => BigDecimal::from_str("0.85").unwrap(),
+            p if p.contains("Polygon") => BigDecimal::from_str("0.75").unwrap(),
+            p if p.contains("Avalanche") => BigDecimal::from_str("0.80").unwrap(),
+            p if p.contains("BSC") => BigDecimal::from_str("0.60").unwrap(),
+            _ => BigDecimal::from_str("0.65").unwrap(),
+        }
+    }
+
+    fn calculate_tvl_risk_score(&self, tvl: &BigDecimal) -> BigDecimal {
+        // Higher TVL = lower risk (more battle-tested)
+        let tvl_millions = tvl / BigDecimal::from(1_000_000);
+        if tvl_millions >= BigDecimal::from(1000) {
+            BigDecimal::from_str("0.90").unwrap() // Very high TVL
+        } else if tvl_millions >= BigDecimal::from(100) {
+            BigDecimal::from_str("0.80").unwrap() // High TVL
+        } else if tvl_millions >= BigDecimal::from(10) {
+            BigDecimal::from_str("0.70").unwrap() // Medium TVL
+        } else {
+            BigDecimal::from_str("0.50").unwrap() // Low TVL
+        }
+    }
+
+    fn calculate_exploit_history_score(&self, exploit_count: i32) -> BigDecimal {
+        match exploit_count {
+            0 => BigDecimal::from_str("0.95").unwrap(),
+            1 => BigDecimal::from_str("0.75").unwrap(),
+            2 => BigDecimal::from_str("0.60").unwrap(),
+            3 => BigDecimal::from_str("0.45").unwrap(),
+            _ => BigDecimal::from_str("0.30").unwrap(),
+        }
+    }
+
+    fn calculate_bridge_overall_score(
+        &self,
+        security_score: &BigDecimal,
+        audit_score: &BigDecimal,
+        tvl_score: &BigDecimal,
+        decentralization_score: &BigDecimal,
+        exploit_history_score: &BigDecimal,
+    ) -> BigDecimal {
+        let weights = [
+            (security_score, 0.3),
+            (audit_score, 0.25),
+            (tvl_score, 0.2),
+            (decentralization_score, 0.15),
+            (exploit_history_score, 0.1),
+        ];
+        
+        weights.iter()
+            .map(|(score, weight)| *score * BigDecimal::from_str(&weight.to_string()).unwrap())
+            .sum()
+    }
+
+    // Enhanced liquidity fragmentation helper methods
+    fn calculate_tvl_fragmentation_risk(
+        &self,
+        chain_metrics: &std::collections::HashMap<i32, ChainLiquidityMetrics>,
+        total_tvl: &BigDecimal,
+    ) -> BigDecimal {
+        let mut tvl_values: Vec<BigDecimal> = chain_metrics.values().map(|m| m.tvl.clone()).collect();
+        tvl_values.sort();
+        self.calculate_liquidity_gini_coefficient(&tvl_values, total_tvl)
+    }
+
+    fn calculate_volume_fragmentation_risk(
+        &self,
+        chain_metrics: &std::collections::HashMap<i32, ChainLiquidityMetrics>,
+        total_volume: &BigDecimal,
+    ) -> BigDecimal {
+        if total_volume.is_zero() {
+            return BigDecimal::from_str("0.5").unwrap();
+        }
+        let mut volume_values: Vec<BigDecimal> = chain_metrics.values().map(|m| m.volume_24h.clone()).collect();
+        volume_values.sort();
+        self.calculate_liquidity_gini_coefficient(&volume_values, total_volume)
+    }
+
+    fn calculate_chain_diversity_risk(&self, chain_count: usize) -> BigDecimal {
+        match chain_count {
+            1 => BigDecimal::zero(), // No cross-chain risk
+            2 => BigDecimal::from_str("0.2").unwrap(),
+            3 => BigDecimal::from_str("0.4").unwrap(),
+            4 => BigDecimal::from_str("0.6").unwrap(),
+            5 => BigDecimal::from_str("0.75").unwrap(),
+            _ => BigDecimal::from_str("0.9").unwrap(), // High complexity risk
+        }
+    }
+
+    fn calculate_utilization_imbalance_risk(
+        &self,
+        chain_metrics: &std::collections::HashMap<i32, ChainLiquidityMetrics>,
+    ) -> BigDecimal {
+        let utilizations: Vec<BigDecimal> = chain_metrics.values()
+            .map(|m| m.liquidity_utilization.clone())
+            .collect();
+        
+        if utilizations.len() < 2 {
+            return BigDecimal::zero();
+        }
+        
+        let avg_utilization: BigDecimal = utilizations.iter().sum::<BigDecimal>() / BigDecimal::from(utilizations.len() as i32);
+        let variance: BigDecimal = utilizations.iter()
+            .map(|u| (u - &avg_utilization).abs())
+            .sum::<BigDecimal>() / BigDecimal::from(utilizations.len() as i32);
+        
+        // Higher variance = higher imbalance risk
+        variance.min(BigDecimal::from(1))
+    }
+
+    async fn calculate_bridge_dependency_risk(
+        &self,
+        chain_metrics: &std::collections::HashMap<i32, ChainLiquidityMetrics>,
+    ) -> Result<BigDecimal, AppError> {
+        let chain_ids: Vec<i32> = chain_metrics.keys().cloned().collect();
+        if chain_ids.len() < 2 {
+            return Ok(BigDecimal::zero());
+        }
+        
+        let mut total_bridge_risk = BigDecimal::zero();
+        let mut bridge_count = 0;
+        
+        for i in 0..chain_ids.len() {
+            for j in i+1..chain_ids.len() {
+                let bridge_assessment = self.get_bridge_assessment(chain_ids[i], chain_ids[j]).await?;
+                total_bridge_risk += BigDecimal::from(1) - bridge_assessment.overall_score;
+                bridge_count += 1;
+            }
+        }
+        
+        if bridge_count > 0 {
+            Ok(total_bridge_risk / BigDecimal::from(bridge_count))
+        } else {
+            Ok(BigDecimal::zero())
+        }
     }
 }
 
