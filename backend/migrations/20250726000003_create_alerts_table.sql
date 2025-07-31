@@ -1,5 +1,5 @@
 -- Create alerts table for storing triggered alerts
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     position_id UUID REFERENCES positions(id) ON DELETE CASCADE,
     alert_type VARCHAR(50) NOT NULL,
@@ -15,11 +15,11 @@ CREATE TABLE alerts (
 );
 
 -- Create indexes for efficient querying
-CREATE INDEX idx_alerts_position_id ON alerts(position_id);
-CREATE INDEX idx_alerts_severity ON alerts(severity);
-CREATE INDEX idx_alerts_alert_type ON alerts(alert_type);
-CREATE INDEX idx_alerts_is_resolved ON alerts(is_resolved);
-CREATE INDEX idx_alerts_created_at ON alerts(created_at);
+CREATE INDEX IF NOT EXISTS idx_alerts_position_id ON alerts(position_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_alerts_alert_type ON alerts(alert_type);
+CREATE INDEX IF NOT EXISTS idx_alerts_is_resolved ON alerts(is_resolved);
+CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at);
 
 -- Add comments for documentation
 COMMENT ON TABLE alerts IS 'Triggered alerts for risk threshold violations';

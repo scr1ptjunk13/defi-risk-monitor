@@ -1,0 +1,10 @@
+/home/junk/RustroverProjects/defi-risk-monitor/backend/test_blockchain/target/debug/deps/alloy_network_primitives-b4bb58d86fc38658.d: /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/lib.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/traits.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/block.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/../README.md
+
+/home/junk/RustroverProjects/defi-risk-monitor/backend/test_blockchain/target/debug/deps/liballoy_network_primitives-b4bb58d86fc38658.rlib: /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/lib.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/traits.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/block.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/../README.md
+
+/home/junk/RustroverProjects/defi-risk-monitor/backend/test_blockchain/target/debug/deps/liballoy_network_primitives-b4bb58d86fc38658.rmeta: /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/lib.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/traits.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/block.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/../README.md
+
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/lib.rs:
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/traits.rs:
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/block.rs:
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-network-primitives-0.3.6/src/../README.md:

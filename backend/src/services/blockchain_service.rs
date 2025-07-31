@@ -1,16 +1,20 @@
 use crate::models::{PoolState, CreatePoolState, CreatePriceHistory};
 use crate::config::Settings;
 use crate::utils::fault_tolerance::{FaultTolerantService, RetryConfig};
+use crate::services::price_storage::PriceStorageService;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::http::{Client, Http},
+    primitives::U256,
 };
 use url::Url;
 use std::sync::Arc;
+use std::str::FromStr;
 use crate::error::AppError;
-use crate::services::contract_bindings::UniswapV3Pool;
+use crate::services::contract_bindings::{UniswapV3Pool, ChainlinkAggregatorV3, addresses};
 use sqlx::PgPool;
 use bigdecimal::BigDecimal;
+use chrono::Utc;
 
 #[derive(Clone)]
 pub struct BlockchainService {
@@ -54,7 +58,10 @@ impl BlockchainService {
     pub async fn get_pool_state(&self, pool_address: &str, chain_id: i32) -> Result<PoolState, AppError> {
         let pool_address = pool_address.to_string();
         let provider = self.get_provider_for_chain(chain_id)?;
-        let pool = UniswapV3Pool::new(pool_address.to_string(), provider.clone());
+        
+        // Create pool contract instance with error handling
+        let pool = UniswapV3Pool::new(pool_address.clone(), provider.clone())
+            .map_err(|e| AppError::BlockchainError(format!("Failed to create pool contract: {}", e)))?;
 
         // Fetch slot0 and liquidity
         let slot0 = pool.slot0().await.map_err(|e| AppError::BlockchainError(format!("slot0 call failed: {}", e)))?;
@@ -75,11 +82,16 @@ impl BlockchainService {
             _ => None,
         };
 
+        // Convert U256 to BigDecimal for sqrt_price_x96
+        let sqrt_price_x96_str = slot0.0.to_string();
+        let sqrt_price_x96 = BigDecimal::from_str(&sqrt_price_x96_str)
+            .map_err(|e| AppError::BlockchainError(format!("Failed to parse sqrt_price_x96: {}", e)))?;
+
         let create_pool_state = CreatePoolState {
             pool_address: pool_address.clone(),
             chain_id,
             current_tick: slot0.1, // tick is the second field
-            sqrt_price_x96: BigDecimal::from(slot0.0), // sqrt_price_x96 is the first field
+            sqrt_price_x96,
             liquidity: BigDecimal::from(liquidity),
             token0_price_usd,
             token1_price_usd,
@@ -92,30 +104,39 @@ impl BlockchainService {
     }
 
     pub async fn get_token_price(&self, token_address: &str, chain_id: i32) -> Result<BigDecimal, AppError> {
-        use crate::services::contract_bindings::ChainlinkAggregatorV3;
-        use crate::services::price_storage::PriceStorageService;
-        
-        use bigdecimal::BigDecimal;
-        use chrono::Utc;
-        use std::str::FromStr;
-
-        // For demo: mapping from token_address to Chainlink aggregator address
-        // In production, use a config or DB mapping
+        // Enhanced token to Chainlink aggregator mapping using the addresses module
         let aggregator_address = match token_address.to_lowercase().as_str() {
-            // Example: USDC mainnet
-            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" => "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6", // USDC/USD Chainlink
-            // Add more tokens as needed
-            _ => return Err(AppError::BlockchainError("No Chainlink aggregator for token".to_string())),
+            // Ethereum mainnet tokens
+            _ if token_address.eq_ignore_ascii_case(addresses::WETH) => addresses::ETH_USD_FEED,
+            _ if token_address.eq_ignore_ascii_case(addresses::USDC) => addresses::USDC_USD_FEED,
+            _ if token_address.eq_ignore_ascii_case(addresses::USDT) => addresses::USDT_USD_FEED,
+            _ if token_address.eq_ignore_ascii_case(addresses::WBTC) => addresses::BTC_USD_FEED,
+            _ if token_address.eq_ignore_ascii_case(addresses::DAI) => addresses::DAI_USD_FEED,
+            // Legacy mapping for backward compatibility
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" => addresses::USDC_USD_FEED,
+            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2" => addresses::ETH_USD_FEED,
+            "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599" => addresses::BTC_USD_FEED,
+            _ => return Err(AppError::BlockchainError(format!("No Chainlink aggregator for token: {}", token_address))),
         };
+        
         let provider = self.get_provider_for_chain(chain_id)?;
-        let aggregator = ChainlinkAggregatorV3::new(aggregator_address.to_string(), provider.clone());
+        
+        // Create aggregator contract instance with error handling
+        let aggregator = ChainlinkAggregatorV3::new(aggregator_address.to_string(), provider.clone())
+            .map_err(|e| AppError::BlockchainError(format!("Failed to create aggregator contract: {}", e)))?;
 
-        let round_data = aggregator.latest_round_data().await.map_err(|e| AppError::BlockchainError(format!("Chainlink call failed: {}", e)))?;
+        // Fetch latest round data and decimals
+        let round_data = aggregator.latest_round_data().await
+            .map_err(|e| AppError::BlockchainError(format!("Chainlink call failed: {}", e)))?;
+        let decimals = aggregator.decimals().await
+            .map_err(|e| AppError::BlockchainError(format!("Failed to get decimals: {}", e)))?;
+        
         let price_raw = round_data.1; // answer is the second field in the tuple
-        let price = BigDecimal::from_str(&price_raw.to_string()).map_err(|e| AppError::BlockchainError(format!("BigDecimal parse error: {}", e)))?;
+        let price = BigDecimal::from_str(&price_raw.to_string())
+            .map_err(|e| AppError::BlockchainError(format!("BigDecimal parse error: {}", e)))?;
 
-        // Chainlink USD feeds are usually 8 decimals
-        let price_usd = price / BigDecimal::from(10u64.pow(8));
+        // Use actual decimals from the feed instead of assuming 8
+        let price_usd = price / BigDecimal::from(10u64.pow(decimals as u32));
 
         // Store price in persistent history
         let price_storage = PriceStorageService::new(self.db_pool.clone());

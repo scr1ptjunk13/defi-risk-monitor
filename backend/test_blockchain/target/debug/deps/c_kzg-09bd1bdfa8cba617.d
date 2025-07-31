@@ -1,0 +1,10 @@
+/home/junk/RustroverProjects/defi-risk-monitor/backend/test_blockchain/target/debug/deps/c_kzg-09bd1bdfa8cba617.d: /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/lib.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/mod.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/serde.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/./generated.rs
+
+/home/junk/RustroverProjects/defi-risk-monitor/backend/test_blockchain/target/debug/deps/libc_kzg-09bd1bdfa8cba617.rlib: /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/lib.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/mod.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/serde.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/./generated.rs
+
+/home/junk/RustroverProjects/defi-risk-monitor/backend/test_blockchain/target/debug/deps/libc_kzg-09bd1bdfa8cba617.rmeta: /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/lib.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/mod.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/serde.rs /home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/./generated.rs
+
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/lib.rs:
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/mod.rs:
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/serde.rs:
+/home/junk/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/c-kzg-1.0.3/bindings/rust/src/bindings/./generated.rs:

@@ -70,7 +70,7 @@
 # ENVIRONMENT & SECRETS
 # ================================
 
-# Environment files (CRITICAL - NEVER COMMIT SECRETS!)
+Environment files (CRITICAL - NEVER COMMIT SECRETS!)
 .env
 .env.local
 .env.development.local

@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT * FROM price_history\n            WHERE token_address = $1 AND chain_id = $2\n              AND timestamp >= $3 AND timestamp <= $4\n            ORDER BY timestamp DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "token_address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "chain_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "price_usd",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "97466113215cb3d84d00d6db4457102ee32c5ae6581c201150cbdf73eadac8e3"
+}

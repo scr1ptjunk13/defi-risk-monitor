@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE positions \n            SET entry_token0_price_usd = $1,\n                entry_token1_price_usd = $2,\n                updated_at = NOW()\n            WHERE id = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Numeric",
+        "Numeric",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fbff49859e4a86003b11e73b0c693de74650ad622dd3196bd3fdbff3f5cb9178"
+}

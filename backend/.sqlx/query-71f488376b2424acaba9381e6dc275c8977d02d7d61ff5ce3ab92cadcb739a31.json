@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM audit_logs WHERE timestamp < $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "71f488376b2424acaba9381e6dc275c8977d02d7d61ff5ce3ab92cadcb739a31"
+}

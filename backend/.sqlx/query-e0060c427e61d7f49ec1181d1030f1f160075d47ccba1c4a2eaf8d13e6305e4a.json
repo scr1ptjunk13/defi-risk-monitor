@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, user_address, protocol, pool_address, token0_address, token1_address,\n                   token0_amount, token1_amount, liquidity, tick_lower, tick_upper, fee_tier,\n                   chain_id, entry_token0_price_usd, entry_token1_price_usd, \n                   entry_timestamp as \"entry_timestamp\",\n                   created_at as \"created_at\", updated_at as \"updated_at\"\n            FROM positions \n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "pool_address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "token0_address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "token1_address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "token0_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "token1_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "liquidity",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "tick_lower",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "tick_upper",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "fee_tier",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "chain_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "entry_token0_price_usd",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 14,
+        "name": "entry_token1_price_usd",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "entry_timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "e0060c427e61d7f49ec1181d1030f1f160075d47ccba1c4a2eaf8d13e6305e4a"
+}

@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT impermanent_loss, price_impact, volatility_score, correlation_score,\n               liquidity_score, overall_risk_score, value_at_risk_1d, value_at_risk_7d\n        FROM risk_metrics \n        WHERE position_id = $1 \n        ORDER BY calculated_at DESC \n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "impermanent_loss",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 1,
+        "name": "price_impact",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 2,
+        "name": "volatility_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "correlation_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "liquidity_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "overall_risk_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "value_at_risk_1d",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "value_at_risk_7d",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "dc386cbab76a87a79ccbfcef422d896145739d6a15f1c70cc4d3bfff7aef4742"
+}

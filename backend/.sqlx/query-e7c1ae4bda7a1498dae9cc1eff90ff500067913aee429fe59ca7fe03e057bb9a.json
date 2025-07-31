@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO mev_risks (\n                id, pool_address, chain_id, sandwich_risk_score, frontrun_risk_score,\n                oracle_manipulation_risk, oracle_deviation_risk, overall_mev_risk,\n                confidence_score, created_at, updated_at\n            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Int4",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e7c1ae4bda7a1498dae9cc1eff90ff500067913aee429fe59ca7fe03e057bb9a"
+}

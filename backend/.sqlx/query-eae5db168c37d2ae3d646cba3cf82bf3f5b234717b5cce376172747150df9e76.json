@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT * FROM protocol_audits \n            WHERE protocol_name = $1 AND audit_date >= $2 AND is_active = true\n            ORDER BY audit_date DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "protocol_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "auditor_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "audit_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "audit_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "critical_issues",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "high_issues",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "medium_issues",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "low_issues",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "audit_report_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "eae5db168c37d2ae3d646cba3cf82bf3f5b234717b5cce376172747150df9e76"
+}

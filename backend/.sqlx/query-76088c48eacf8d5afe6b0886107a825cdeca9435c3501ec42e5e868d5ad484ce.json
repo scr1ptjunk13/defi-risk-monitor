@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                id, protocol_name, exploit_date, \n                exploit_type as \"exploit_type: ExploitType\", \n                amount_lost_usd, \n                severity as \"severity: ExploitSeverity\",\n                description, was_recovered, recovery_amount_usd,\n                created_at, updated_at\n            FROM protocol_exploits \n            WHERE protocol_name = $1\n            ORDER BY exploit_date DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "protocol_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "exploit_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "exploit_type: ExploitType",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "amount_lost_usd",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "severity: ExploitSeverity",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "was_recovered",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "recovery_amount_usd",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "76088c48eacf8d5afe6b0886107a825cdeca9435c3501ec42e5e868d5ad484ce"
+}
