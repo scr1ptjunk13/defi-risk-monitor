@@ -122,7 +122,7 @@ const AnalyticsPage: React.FC = () => {
               <p className="text-gray-400">Detailed breakdown of your DeFi position risks</p>
             </div>
             <RiskFactorBreakdown 
-              riskMetrics={riskMetrics?.[selectedPosition || positions[0]?.id]}
+              riskMetrics={riskMetrics || undefined}
               positionId={selectedPosition || positions[0]?.id}
               className="mb-8"
             />
@@ -166,7 +166,7 @@ const AnalyticsPage: React.FC = () => {
               <p className="text-gray-400">Intelligent risk analysis and personalized recommendations</p>
             </div>
             <ExplainableAIInterface 
-              riskMetrics={riskMetrics?.[selectedPosition || positions[0]?.id]}
+              riskMetrics={riskMetrics || undefined}
               positionId={selectedPosition || positions[0]?.id}
               userAddress={address}
               className="mb-8"
@@ -289,7 +289,7 @@ const AnalyticsPage: React.FC = () => {
           <div className="text-center py-12">
             <AlertTriangleIcon className="w-12 h-12 mx-auto text-red-400 mb-4" />
             <h3 className="text-lg font-medium text-white mb-2">Error Loading Data</h3>
-            <p className="text-gray-400 mb-4">{error}</p>
+            <p className="text-gray-400 mb-4">{error instanceof Error ? error.message : String(error)}</p>
             <button
               onClick={refreshPositions}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"

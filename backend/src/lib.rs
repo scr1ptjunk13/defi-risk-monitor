@@ -6,6 +6,7 @@ pub mod database;
 pub mod utils;
 pub mod error;
 pub mod security;
+pub mod comprehensive_test_demo;
 
 
 pub use error::types::*;

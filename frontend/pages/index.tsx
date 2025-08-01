@@ -10,7 +10,7 @@ import { InfoIcon, CheckIcon } from "../components/Icons";
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'liquidity' | 'dashboard'>('liquidity');
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
 
   // Fix hydration error
   useEffect(() => {
@@ -180,7 +180,7 @@ export default function Home() {
             ) : (
               /* Risk Dashboard Tab */
               <div className="max-w-6xl mx-auto">
-                <RiskDashboard className="w-full" />
+                <RiskDashboard className="w-full" userAddress={address || ''} />
               </div>
             )}
           </div>

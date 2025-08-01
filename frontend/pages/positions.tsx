@@ -10,6 +10,8 @@ import { useAccount } from 'wagmi';
 import { useRiskMonitoring } from '../hooks/useRiskMonitoring';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { toast } from 'react-hot-toast';
+import { useErrorHandler, ErrorSeverity, ErrorCategory } from '../lib/error-handling';
+import { PositionErrorBoundary } from '../components/ErrorBoundary';
 import { Position, RiskMetrics } from '../lib/api-client';
 
 // Import position management components
@@ -35,12 +37,17 @@ interface BulkActionConfirmation {
   isOpen: boolean;
 }
 
-const PositionsPage: React.FC = () => {
+const PositionsPageContent = () => {
   const { address, isConnected } = useAccount();
+  const { handleError, handleNetworkError, handleValidationError } = useErrorHandler();
+
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<string>('');
+  const [actionLoading, setActionLoading] = useState(false);
   const [bulkConfirmation, setBulkConfirmation] = useState<BulkActionConfirmation>({
     action: '',
     positionIds: [],
@@ -117,7 +124,13 @@ const PositionsPage: React.FC = () => {
         setSelectedPosition(null);
       }
     } catch (error) {
-      toast.error('Failed to delete position');
+      handleError(error as Error, {
+        severity: ErrorSeverity.HIGH,
+        category: ErrorCategory.API,
+        component: 'PositionsPage',
+        action: 'Delete Position',
+        additionalData: { positionId }
+      });
     }
   };
 
@@ -156,7 +169,13 @@ const PositionsPage: React.FC = () => {
       toast.success(message);
       refreshPositions();
     } catch (error) {
-      toast.error('Bulk action failed');
+      handleError(error as Error, {
+        severity: ErrorSeverity.HIGH,
+        category: ErrorCategory.API,
+        component: 'PositionsPage',
+        action: `Bulk ${action}`,
+        additionalData: { action, positionIds, count: positionIds.length }
+      });
     } finally {
       setBulkConfirmation({ action: '', positionIds: [], isOpen: false });
     }
@@ -177,7 +196,14 @@ const PositionsPage: React.FC = () => {
       await calculateRisk(positionId);
       await explainRisk(positionId);
     } catch (error) {
-      console.error('Failed to refresh position:', error);
+      handleError(error as Error, {
+        severity: ErrorSeverity.MEDIUM,
+        category: ErrorCategory.API,
+        component: 'PositionsPage',
+        action: 'Refresh Position Risk',
+        additionalData: { positionId },
+        showToast: false // Don't show toast for background refresh failures
+      });
     }
   };
 
@@ -366,6 +392,15 @@ const PositionsPage: React.FC = () => {
         </div>
       )}
     </div>
+  );
+};
+
+// Main component wrapped with error boundary
+const PositionsPage: React.FC = () => {
+  return (
+    <PositionErrorBoundary>
+      <PositionsPageContent />
+    </PositionErrorBoundary>
   );
 };
 

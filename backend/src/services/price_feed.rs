@@ -117,46 +117,77 @@ impl PriceFeedService {
         })
     }
 
-    /// Fetch price from multiple providers concurrently
+    /// Fetch price from multiple providers with fallback and rate limiting
     pub async fn fetch_prices(&self, token_address: &str, chain_id: i32) -> Result<HashMap<String, BigDecimal>, AppError> {
         let token_info = self.get_token_info(token_address, chain_id)?;
-        let mut price_futures = Vec::new();
-
-        for provider in &self.providers {
-            let client = self.client.clone();
-            let provider = provider.clone();
-            let token_info = token_info.clone();
-
-            let future = tokio::spawn(async move {
-                let result = Self::fetch_price_from_provider(&client, &provider, &token_info).await;
-                (provider.name.clone(), result)
-            });
-
-            price_futures.push(future);
-        }
-
         let mut prices = HashMap::new();
-        for future in price_futures {
-            match future.await {
-                Ok((provider_name, Ok(price))) => {
-                    prices.insert(provider_name, price);
-                }
-                Ok((provider_name, Err(e))) => {
-                    warn!("Failed to fetch price from {}: {}", provider_name, e);
+        let mut last_error = None;
+
+        // Try providers sequentially with delays to avoid rate limiting
+        for (i, provider) in self.providers.iter().enumerate() {
+            // Add delay between requests to avoid rate limiting
+            if i > 0 {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+
+            match Self::fetch_price_from_provider_with_retry(&self.client, provider, &token_info).await {
+                Ok(price) => {
+                    prices.insert(provider.name.clone(), price);
+                    // If we get at least one successful price, that's enough for basic functionality
+                    break;
                 }
                 Err(e) => {
-                    warn!("Price fetch task failed: {}", e);
+                    warn!("Failed to fetch price from {}: {}", provider.name, e);
+                    last_error = Some(e);
+                    continue;
                 }
             }
         }
 
         if prices.is_empty() {
-            return Err(AppError::ExternalApiError(
-                "Failed to fetch price from any provider".to_string()
+            return Err(last_error.unwrap_or_else(|| 
+                AppError::ExternalApiError("Failed to fetch price from any provider".to_string())
             ));
         }
 
         Ok(prices)
+    }
+
+    /// Fetch price from a specific provider with retry logic
+    async fn fetch_price_from_provider_with_retry(
+        client: &Client,
+        provider: &PriceFeedProvider,
+        token_info: &TokenInfo,
+    ) -> Result<BigDecimal, AppError> {
+        let max_retries = 3;
+        let mut last_error = None;
+        
+        for attempt in 0..max_retries {
+            if attempt > 0 {
+                // Exponential backoff: 500ms, 1s, 2s
+                let delay = Duration::from_millis(500 * (1 << attempt));
+                tokio::time::sleep(delay).await;
+            }
+            
+            match Self::fetch_price_from_provider(client, provider, token_info).await {
+                Ok(price) => return Ok(price),
+                Err(e) => {
+                    // Check if this is a rate limiting error (429)
+                    if e.to_string().contains("429") || e.to_string().contains("Too Many Requests") {
+                        warn!("Rate limited by {}, attempt {}/{}", provider.name, attempt + 1, max_retries);
+                        last_error = Some(e);
+                        continue;
+                    } else {
+                        // For non-rate-limiting errors, fail immediately
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        
+        Err(last_error.unwrap_or_else(|| 
+            AppError::ExternalApiError(format!("Failed to fetch price from {} after {} retries", provider.name, max_retries))
+        ))
     }
 
     /// Fetch price from a specific provider

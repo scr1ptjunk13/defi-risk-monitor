@@ -105,12 +105,15 @@ export interface AlertThreshold {
   created_at: string;
 }
 
+import { toast } from 'react-hot-toast';
+import { errorHandler, ErrorSeverity, ErrorCategory } from './error-handling';
+
 // Enhanced Error Classes
 export class APIError extends Error {
   constructor(
     message: string,
-    public status?: number,
-    public code?: string,
+    public statusCode: number,
+    public code: string,
     public details?: any
   ) {
     super(message);
@@ -132,27 +135,36 @@ export class AuthenticationError extends APIError {
   }
 }
 
-// WebSocket Connection Manager
-class WebSocketManager {
+// Enhanced WebSocket Manager with Error Handling
+export class WebSocketManager {
   private ws: WebSocket | null = null;
+  private url: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private messageHandlers: Set<(data: any) => void> = new Set();
   private errorHandlers: Set<(error: Event) => void> = new Set();
-  private isReconnecting = false;
+  private isConnecting = false;
 
-  constructor(private url: string) {}
+  constructor(url: string) {
+    this.url = url;
+  }
 
-  connect(): Promise<void> {
+  async connect(): Promise<void> {
+    if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
+      return;
+    }
+
+    this.isConnecting = true;
+
     return new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.url);
-        
+
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
+          this.isConnecting = false;
           this.reconnectAttempts = 0;
-          this.isReconnecting = false;
+          console.log('WebSocket connected');
           resolve();
         };
 
@@ -161,39 +173,72 @@ class WebSocketManager {
             const data = JSON.parse(event.data);
             this.messageHandlers.forEach(handler => handler(data));
           } catch (error) {
-            console.error('Failed to parse WebSocket message:', error);
+            errorHandler.handleError(error as Error, {
+              severity: ErrorSeverity.LOW,
+              category: ErrorCategory.API,
+              component: 'WebSocketManager',
+              action: 'Parse Message',
+              showToast: false
+            });
           }
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          errorHandler.handleError(new Error('WebSocket connection error'), {
+            severity: ErrorSeverity.HIGH,
+            category: ErrorCategory.NETWORK,
+            component: 'WebSocketManager',
+            action: 'Connection',
+            additionalData: { url: this.url, reconnectAttempts: this.reconnectAttempts }
+          });
           this.errorHandlers.forEach(handler => handler(error));
         };
 
         this.ws.onclose = () => {
-          console.log('WebSocket disconnected');
-          this.attemptReconnect();
+          this.isConnecting = false;
+          this.ws = null;
+          this.handleReconnect();
         };
+
       } catch (error) {
+        this.isConnecting = false;
+        errorHandler.handleError(error as Error, {
+          severity: ErrorSeverity.CRITICAL,
+          category: ErrorCategory.NETWORK,
+          component: 'WebSocketManager',
+          action: 'Initialize Connection'
+        });
         reject(error);
       }
     });
   }
 
-  private attemptReconnect() {
-    if (this.isReconnecting || this.reconnectAttempts >= this.maxReconnectAttempts) {
+  private async handleReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      errorHandler.handleError(new Error('Max WebSocket reconnection attempts reached'), {
+        severity: ErrorSeverity.CRITICAL,
+        category: ErrorCategory.NETWORK,
+        component: 'WebSocketManager',
+        action: 'Reconnect',
+        additionalData: { maxAttempts: this.maxReconnectAttempts }
+      });
       return;
     }
 
-    this.isReconnecting = true;
     this.reconnectAttempts++;
-    
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+
     setTimeout(() => {
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      this.connect().catch(() => {
-        this.isReconnecting = false;
+      this.connect().catch(error => {
+        errorHandler.handleError(error, {
+          severity: ErrorSeverity.HIGH,
+          category: ErrorCategory.NETWORK,
+          component: 'WebSocketManager',
+          action: 'Reconnect Attempt',
+          additionalData: { attempt: this.reconnectAttempts, delay }
+        });
       });
-    }, this.reconnectDelay * this.reconnectAttempts);
+    }, delay);
   }
 
   addMessageHandler(handler: (data: any) => void) {
@@ -212,25 +257,39 @@ class WebSocketManager {
     this.errorHandlers.delete(handler);
   }
 
+  send(data: any) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify(data));
+      } catch (error) {
+        errorHandler.handleError(error as Error, {
+          severity: ErrorSeverity.MEDIUM,
+          category: ErrorCategory.API,
+          component: 'WebSocketManager',
+          action: 'Send Message'
+        });
+      }
+    } else {
+      errorHandler.handleError(new Error('WebSocket not connected'), {
+        severity: ErrorSeverity.MEDIUM,
+        category: ErrorCategory.NETWORK,
+        component: 'WebSocketManager',
+        action: 'Send Message',
+        showToast: false
+      });
+    }
+  }
+
   disconnect() {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
-    this.messageHandlers.clear();
-    this.errorHandlers.clear();
+    this.reconnectAttempts = 0;
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
-  }
-
-  send(data: any) {
-    if (this.isConnected()) {
-      this.ws!.send(JSON.stringify(data));
-    } else {
-      throw new Error('WebSocket is not connected');
-    }
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 }
 
