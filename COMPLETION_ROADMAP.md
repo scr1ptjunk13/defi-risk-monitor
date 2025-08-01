@@ -36,7 +36,7 @@
 - ✅ No more "Mock implementation" comments
 
 #### **Task 1.1.2: Real Price Feed Integration**
-- [ ] **Replace** mock price fetching in `price_validation.rs`
+- [x] **Replace** mock price fetching in `price_validation.rs`
 - [ ] **Integrate** CoinGecko API for backup price data
 - [ ] **Add** multiple price source aggregation
 - [ ] **Implement** price deviation detection with real data
@@ -70,20 +70,20 @@
 - ✅ Proper IL calculations
 
 #### **Task 1.2.2: Complete Cross-Chain Risk Service**
-- [ ] **Implement** actual database storage methods
-- [ ] **Remove** "TODO: Implement actual database storage" stubs
-- [ ] **Add** real cross-chain bridge risk assessment
-- [ ] **Implement** liquidity fragmentation analysis
-- [ ] **Test** with multi-chain positions
+- [x] **Implement** actual database storage methods
+- [x] **Remove** "TODO: Implement actual database storage" stubs
+- [x] **Add** real cross-chain bridge risk assessment
+- [x] **Implement** liquidity fragmentation analysis
+- [x] **Test** with multi-chain positions
 
 **Files to Fix**:
 - `backend/src/services/cross_chain_risk_service.rs` (LINES 511-522)
 
 #### **Task 1.2.3: Complete MEV Risk Service**
-- [ ] **Implement** actual database queries for MEV data
-- [ ] **Add** real sandwich attack detection
-- [ ] **Implement** oracle manipulation detection
-- [ ] **Connect** to MEV-Boost/Flashbots data feeds
+- [x] **Implement** actual database queries for MEV data
+- [x] **Add** real sandwich attack detection
+- [x] **Implement** oracle manipulation detection
+- [x] **Connect** to MEV-Boost/Flashbots data feeds
 
 **Files to Fix**:
 - `backend/src/services/mev_risk_service.rs` (LINES 326-370)

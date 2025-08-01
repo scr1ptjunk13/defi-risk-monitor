@@ -72,7 +72,7 @@ export const useProtocolEvents = (initialFilters?: EventFilters): UseProtocolEve
   const [currentEvent, setCurrentEvent] = useState<ProtocolEvent | null>(null);
   const [totalEvents, setTotalEvents] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [perPage, setPerPage] = useState(20);
+  const [perPage] = useState(10);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [filters, setFiltersState] = useState<EventFilters>(initialFilters || {});
@@ -111,7 +111,6 @@ export const useProtocolEvents = (initialFilters?: EventFilters): UseProtocolEve
       setEvents(response.events);
       setTotalEvents(response.total);
       setCurrentPage(response.page);
-      setPerPage(response.per_page);
     } catch (error) {
       handleError(error, 'load protocol events');
     } finally {
@@ -190,12 +189,13 @@ export const useProtocolEvents = (initialFilters?: EventFilters): UseProtocolEve
 
   // Real-time WebSocket Connection
   const connectRealTime = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (apiClient.isWebSocketConnected()) return;
 
     try {
-      wsRef.current = apiClient.connectWebSocket(
+      apiClient.connectWebSocket(
         (data) => {
           setLastEventUpdate(new Date());
+          setIsConnected(true);
           
           switch (data.type) {
             case 'PROTOCOL_EVENT':
@@ -227,25 +227,19 @@ export const useProtocolEvents = (initialFilters?: EventFilters): UseProtocolEve
         }
       );
 
-      wsRef.current.onopen = () => {
-        setIsConnected(true);
-        console.log('Connected to real-time protocol event monitoring');
-      };
-
-      wsRef.current.onclose = () => {
-        setIsConnected(false);
-        console.log('Disconnected from protocol event monitoring');
-      };
+      // Mark as connected initially
+      setIsConnected(true);
+      console.log('Connected to real-time protocol event monitoring');
 
     } catch (error) {
       handleError(error, 'connect to protocol event monitoring');
+      setIsConnected(false);
     }
   }, [perPage, handleError]);
 
   const disconnectRealTime = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    if (apiClient.isWebSocketConnected()) {
+      apiClient.disconnectWebSocket();
       setIsConnected(false);
     }
   }, []);

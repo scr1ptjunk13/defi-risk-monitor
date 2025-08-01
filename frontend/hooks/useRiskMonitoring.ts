@@ -1,8 +1,8 @@
 /**
  * useRiskMonitoring Hook
  * 
- * Custom hook for managing position risk monitoring, real-time updates,
- * and risk analytics integration with the backend API
+ * Enhanced custom hook for managing position risk monitoring, real-time updates,
+ * risk analytics integration, authentication, and error handling with the backend API
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -13,7 +13,10 @@ import {
   Position, 
   RiskMetrics, 
   RiskExplanation, 
-  CreatePositionRequest 
+  CreatePositionRequest,
+  APIError,
+  NetworkError,
+  AuthenticationError
 } from '../lib/api-client';
 
 export interface UseRiskMonitoringReturn {
@@ -35,12 +38,32 @@ export interface UseRiskMonitoringReturn {
   // Real-time Updates
   isConnected: boolean;
   lastUpdate: Date | null;
-  connectRealTime: () => void;
+  connectRealTime: () => Promise<void>;
   disconnectRealTime: () => void;
+  reconnectRealTime: () => Promise<void>;
 
-  // Error Handling
-  error: string | null;
+  // Error Handling & Status
+  error: APIError | null;
+  isRetrying: boolean;
+  retryCount: number;
   clearError: () => void;
+  
+  // Authentication
+  isAuthenticated: boolean;
+  authenticate: (token: string) => void;
+  logout: () => void;
+
+  // Configuration
+  config: {
+    autoRefresh: boolean;
+    refreshInterval: number;
+    enableRealTime: boolean;
+  };
+  updateConfig: (newConfig: Partial<{
+    autoRefresh: boolean;
+    refreshInterval: number;
+    enableRealTime: boolean;
+  }>) => void;
 }
 
 export const useRiskMonitoring = (positionId?: string): UseRiskMonitoringReturn => {
@@ -53,21 +76,59 @@ export const useRiskMonitoring = (positionId?: string): UseRiskMonitoringReturn 
   const [isLoadingRisk, setIsLoadingRisk] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<APIError | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [config, setConfig] = useState({
+    autoRefresh: true,
+    refreshInterval: parseInt(process.env.NEXT_PUBLIC_POSITION_REFRESH_INTERVAL || '60000'),
+    enableRealTime: process.env.NEXT_PUBLIC_ENABLE_REAL_TIME_ALERTS === 'true'
+  });
 
   // WebSocket connection ref
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Account connection
+  // Refs for cleanup and configuration
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const maxRetries = 3;
+  const retryDelay = 5000;
+
+  // Get wallet connection
   const { address, isConnected: walletConnected } = useAccount();
 
-  // Error handling
-  const handleError = useCallback((error: any, context: string) => {
-    console.error(`Risk monitoring error in ${context}:`, error);
-    const errorMessage = error?.message || `Failed to ${context}`;
-    setError(errorMessage);
-    toast.error(errorMessage);
-  }, []);
+  // Enhanced error handling
+  const handleError = useCallback((err: unknown, context: string) => {
+    console.error(`Error in ${context}:`, err);
+    
+    if (err instanceof APIError) {
+      setError(err);
+      
+      // Handle specific error types
+      if (err instanceof AuthenticationError) {
+        setIsAuthenticated(false);
+        toast.error('Authentication required. Please reconnect your wallet.');
+      } else if (err instanceof NetworkError) {
+        toast.error('Network error. Retrying...');
+        // Trigger retry for network errors
+        if (retryCount < maxRetries) {
+          setIsRetrying(true);
+          setRetryCount(prev => prev + 1);
+        }
+      } else {
+        toast.error(err.message || 'An error occurred');
+      }
+    } else {
+      const genericError = new APIError(
+        err instanceof Error ? err.message : 'Unknown error occurred',
+        0,
+        'UNKNOWN_ERROR'
+      );
+      setError(genericError);
+      toast.error('An unexpected error occurred');
+    }
+  }, [retryCount]);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -75,35 +136,23 @@ export const useRiskMonitoring = (positionId?: string): UseRiskMonitoringReturn 
 
   // Position Management Functions
   const createPosition = useCallback(async (positionData: CreatePositionRequest): Promise<Position | null> => {
-    if (!walletConnected || !address) {
-      toast.error('Please connect your wallet');
-      return null;
-    }
-
+    clearError();
+    
     try {
-      setIsLoadingPositions(true);
-      clearError();
-
-      const positionWithUser = {
-        ...positionData,
-        user_address: address,
-      };
-
-      const newPosition = await apiClient.createPosition(positionWithUser);
+      const newPosition = await apiClient.createPosition(positionData);
       
       // Add to positions list
-      setPositions(prev => [newPosition, ...prev]);
+      setPositions(prev => [...prev, newPosition]);
       setCurrentPosition(newPosition);
+      setLastUpdate(new Date());
       
-      toast.success('Position created and risk monitoring enabled!');
+      toast.success('Position created successfully!');
       return newPosition;
-    } catch (error) {
-      handleError(error, 'create position');
+    } catch (err) {
+      handleError(err, 'createPosition');
       return null;
-    } finally {
-      setIsLoadingPositions(false);
     }
-  }, [address, walletConnected, handleError, clearError]);
+  }, [clearError, handleError]);
 
   const getPosition = useCallback(async (positionId: string) => {
     try {
@@ -117,140 +166,183 @@ export const useRiskMonitoring = (positionId?: string): UseRiskMonitoringReturn 
     } finally {
       setIsLoadingPositions(false);
     }
-  }, [handleError, clearError]);
+  }, [clearError, handleError]);
 
   const refreshPositions = useCallback(async () => {
-    if (!walletConnected || !address) return;
-
+    if (!address) return;
+    
+    setIsLoadingPositions(true);
+    clearError();
+    
     try {
-      setIsLoadingPositions(true);
-      clearError();
-
       const userPositions = await apiClient.getPositions(address);
       setPositions(userPositions);
-    } catch (error) {
-      handleError(error, 'refresh positions');
+      setLastUpdate(new Date());
+      
+      // If we have a specific position ID, find and set it
+      if (positionId) {
+        const foundPosition = userPositions.find(p => p.id === positionId);
+        if (foundPosition) {
+          setCurrentPosition(foundPosition);
+        }
+      }
+      
+      // Reset retry count on success
+      setRetryCount(0);
+      setIsRetrying(false);
+    } catch (err) {
+      handleError(err, 'refreshPositions');
     } finally {
       setIsLoadingPositions(false);
     }
-  }, [address, walletConnected, handleError, clearError]);
+  }, [address, positionId, clearError, handleError]);
 
-  // Risk Analytics Functions
   const calculateRisk = useCallback(async (positionId: string) => {
+    setIsLoadingRisk(true);
+    clearError();
+    
     try {
-      setIsLoadingRisk(true);
-      clearError();
-
       const risk = await apiClient.getPositionRisk(positionId);
       setRiskMetrics(risk);
       setLastUpdate(new Date());
-    } catch (error) {
-      handleError(error, 'calculate risk');
+    } catch (err) {
+      handleError(err, 'calculateRisk');
     } finally {
       setIsLoadingRisk(false);
     }
-  }, [handleError, clearError]);
+  }, [clearError, handleError]);
 
   const explainRisk = useCallback(async (positionId: string) => {
+    setIsLoadingRisk(true);
+    clearError();
+    
     try {
-      setIsLoadingRisk(true);
-      clearError();
-
       const explanation = await apiClient.explainRisk(positionId);
       setRiskExplanation(explanation);
-    } catch (error) {
-      handleError(error, 'explain risk');
+      setLastUpdate(new Date());
+    } catch (err) {
+      handleError(err, 'explainRisk');
     } finally {
       setIsLoadingRisk(false);
     }
-  }, [handleError, clearError]);
+  }, [clearError, handleError]);
 
   // Real-time WebSocket Functions
-  const connectRealTime = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
+  const connectRealTime = useCallback(async () => {
+    if (!address || isConnected || !config.enableRealTime) return;
+    
     try {
-      wsRef.current = apiClient.connectWebSocket(
+      await apiClient.connectWebSocket(
         (data) => {
-          setLastUpdate(new Date());
+          // Handle real-time updates
+          console.log('Real-time update received:', data);
           
-          switch (data.type) {
-            case 'RISK_UPDATE':
-              if (data.position_id === positionId || data.position_id === currentPosition?.id) {
-                setRiskMetrics(data.risk_metrics);
-              }
-              break;
-              
-            case 'POSITION_UPDATE':
-              if (data.position_id === positionId || data.position_id === currentPosition?.id) {
-                setCurrentPosition(prev => prev ? { ...prev, ...data.updates } : null);
-              }
-              // Update in positions list
-              setPositions(prev => 
-                prev.map(pos => 
-                  pos.id === data.position_id 
-                    ? { ...pos, ...data.updates }
-                    : pos
-                )
-              );
-              break;
-              
-            case 'ALERT_NOTIFICATION':
-              if (data.alert.position_id === positionId || data.alert.position_id === currentPosition?.id) {
-                toast.error(`Risk Alert: ${data.alert.message}`, {
-                  duration: 10000,
-                  icon: '⚠️',
-                });
-              }
-              break;
-              
-            default:
-              console.log('Received WebSocket message:', data);
+          if (data.type === 'position_update') {
+            // Update specific position
+            setPositions(prev => 
+              prev.map(pos => 
+                pos.id === data.position_id ? { ...pos, ...data.updates } : pos
+              )
+            );
+          } else if (data.type === 'risk_update') {
+            // Update risk metrics
+            if (data.position_id === currentPosition?.id) {
+              setRiskMetrics(data.risk_metrics);
+            }
+          } else if (data.type === 'alert') {
+            // Show alert notification
+            const severity = data.severity || 'medium';
+            if (severity === 'critical') {
+              toast.error(`🚨 Critical Alert: ${data.message}`, { duration: 10000 });
+            } else if (severity === 'high') {
+              toast.error(`⚠️ High Risk Alert: ${data.message}`, { duration: 6000 });
+            } else {
+              toast(`📊 ${data.message}`, { duration: 4000 });
+            }
           }
+          
+          setLastUpdate(new Date());
         },
         (error) => {
           console.error('WebSocket error:', error);
           setIsConnected(false);
-          toast.error('Lost connection to risk monitoring service');
+          handleError(new NetworkError('WebSocket connection error'), 'connectRealTime');
         }
       );
-
-      wsRef.current.onopen = () => {
-        setIsConnected(true);
-        console.log('Connected to real-time risk monitoring');
-      };
-
-      wsRef.current.onclose = () => {
-        setIsConnected(false);
-        console.log('Disconnected from real-time risk monitoring');
-      };
-
-    } catch (error) {
-      handleError(error, 'connect to real-time monitoring');
+      
+      setIsConnected(true);
+      toast.success('Real-time monitoring connected');
+    } catch (err) {
+      handleError(err, 'connectRealTime');
     }
-  }, [positionId, currentPosition?.id, handleError]);
+  }, [address, isConnected, config.enableRealTime, currentPosition?.id, handleError]);
 
   const disconnectRealTime = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-      setIsConnected(false);
-    }
+    apiClient.disconnectWebSocket();
+    setIsConnected(false);
+    console.log('Real-time monitoring disconnected');
   }, []);
+
+  const authenticate = useCallback((token: string) => {
+    apiClient.setAuthToken(token);
+    setIsAuthenticated(true);
+  }, []);
+
+  const logout = useCallback(() => {
+    apiClient.clearAuthToken();
+    setIsAuthenticated(false);
+  }, []);
+
+  const updateConfig = useCallback((newConfig: Partial<typeof config>) => {
+    setConfig(prev => ({ ...prev, ...newConfig }));
+  }, [config]);
+
+  const reconnectRealTime = useCallback(async () => {
+    disconnectRealTime();
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+    await connectRealTime();
+  }, [disconnectRealTime, connectRealTime]);
 
   // Effects
   
   // Load positions when wallet connects
   useEffect(() => {
-    if (walletConnected && address) {
+    if (address && walletConnected && config.autoRefresh) {
       refreshPositions();
-    } else {
-      setPositions([]);
-      setCurrentPosition(null);
-      setRiskMetrics(null);
-      setRiskExplanation(null);
+      
+      // Set up auto-refresh interval
+      refreshIntervalRef.current = setInterval(() => {
+        if (!isRetrying) {
+          refreshPositions();
+        }
+      }, config.refreshInterval);
+      
+      return () => {
+        if (refreshIntervalRef.current) {
+          clearInterval(refreshIntervalRef.current);
+        }
+      };
     }
-  }, [walletConnected, address, refreshPositions]);
+  }, [address, walletConnected, config.autoRefresh, config.refreshInterval, refreshPositions, isRetrying]);
+
+  // Retry logic for failed requests
+  useEffect(() => {
+    if (isRetrying && retryCount <= maxRetries) {
+      retryTimeoutRef.current = setTimeout(() => {
+        console.log(`Retrying request (attempt ${retryCount}/${maxRetries})`);
+        refreshPositions();
+      }, retryDelay * retryCount);
+      
+      return () => {
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+      };
+    } else if (retryCount > maxRetries) {
+      setIsRetrying(false);
+      toast.error('Max retry attempts reached. Please check your connection.');
+    }
+  }, [isRetrying, retryCount, refreshPositions]);
 
   // Load specific position if positionId provided
   useEffect(() => {
@@ -259,27 +351,26 @@ export const useRiskMonitoring = (positionId?: string): UseRiskMonitoringReturn 
     }
   }, [positionId, currentPosition?.id, getPosition]);
 
-  // Calculate risk for current position
-  useEffect(() => {
-    if (currentPosition?.id) {
-      calculateRisk(currentPosition.id);
-    }
-  }, [currentPosition?.id, calculateRisk]);
-
   // Auto-connect to real-time updates when position is available
   useEffect(() => {
-    if (currentPosition?.id || (positions.length > 0 && walletConnected)) {
+    if (address && walletConnected && config.enableRealTime) {
       connectRealTime();
     }
-
+    
     return () => {
       disconnectRealTime();
     };
-  }, [currentPosition?.id, positions.length, walletConnected, connectRealTime, disconnectRealTime]);
+  }, [address, walletConnected, config.enableRealTime, connectRealTime, disconnectRealTime]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
       disconnectRealTime();
     };
   }, [disconnectRealTime]);
@@ -292,22 +383,34 @@ export const useRiskMonitoring = (positionId?: string): UseRiskMonitoringReturn 
     createPosition,
     getPosition,
     refreshPositions,
-
+    
     // Risk Analytics
     riskMetrics,
     riskExplanation,
     isLoadingRisk,
     calculateRisk,
     explainRisk,
-
+    
     // Real-time Updates
     isConnected,
     lastUpdate,
     connectRealTime,
     disconnectRealTime,
-
-    // Error Handling
+    reconnectRealTime,
+    
+    // Error Handling & Status
     error,
+    isRetrying,
+    retryCount,
     clearError,
+    
+    // Authentication
+    isAuthenticated,
+    authenticate,
+    logout,
+    
+    // Configuration
+    config,
+    updateConfig,
   };
 };

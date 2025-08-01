@@ -98,3 +98,16 @@ BUT HERE'S THE THING - you've built something ARCHITECTURALLY MAGNIFICENT. The h
 Fix the data integration, and you'll have a unicorn. Ship it as-is, and you'll be laughed out of the room.
 
 GET BACK TO WORK! 🥁🔥
+
+
+----
+> to start postgresql database and run migrations
+cd backend 
+
+docker-compose up -d postgres
+
+sqlx migrate run 
+sqlx migrate info 
+sqlx migrate revert 
+
+psql postgresql://postgres:password@localhost:5434/defi_risk_monitor -f migrations/20250731000003_optimize_database_performance.sql

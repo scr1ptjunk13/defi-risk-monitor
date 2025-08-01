@@ -1,102 +1,123 @@
-# 🚀 Build & Deploy Uniswap V3 Liquidity Creator DApp
+# 🛡️ DeFi Risk Monitor - Frontend Dashboard
 
-Build a Uniswap V3 Liquidity Creator DApp with Next.js | Next.js + Uniswap V3, Web3 DeFi Project
+**Advanced DeFi Risk Monitoring & Portfolio Management Platform**
 
-In this video, we’ll walk you through building and deploying a Uniswap V3 Liquidity Creator DApp from scratch using Next.js. Whether you're a DeFi enthusiast or a Web3 developer, this project will help you understand how to interact with Uniswap V3 smart contracts and create liquidity pools directly from your own decentralized application.
+A comprehensive Next.js-based dashboard for real-time DeFi position monitoring, risk analytics, MEV protection, and cross-chain portfolio management. Built with modern Web3 technologies and integrated with a powerful Rust backend.
 
-## Project Overview
+## 🚀 Features
 
-![alt text](https://www.daulathussain.com/wp-content/uploads/2025/05/Build-a-Uniswap-V3-Liquidity-Creator-DApp-with-Next.js-Next.js-Uniswap-V3-Web3-DeFi-Project.jpg)
+### 📊 **Real-Time Risk Analytics**
+- **Position Risk Scoring**: Advanced algorithms analyze liquidity, volatility, protocol, MEV, and cross-chain risks
+- **Impermanent Loss Tracking**: Real-time IL calculations with historical trends
+- **MEV Protection**: Sandwich attack detection and front-running risk assessment
+- **Cross-Chain Risk Analysis**: Multi-chain position monitoring and bridge risk evaluation
 
-## Instruction
+### 💼 **Portfolio Management**
+- **Multi-Chain Support**: Ethereum, Polygon, Arbitrum, Optimism, BSC, Avalanche
+- **Position Tracking**: Comprehensive position management with performance analytics
+- **P&L Analysis**: Detailed profit/loss tracking with fee breakdowns
+- **Asset Allocation**: Diversification analysis and concentration risk monitoring
 
-Kindly follow the following Instructions to run the project in your system and install the necessary requirements
+### 🔔 **Smart Alerts & Monitoring**
+- **Customizable Thresholds**: Set alerts for risk levels, price movements, and portfolio changes
+- **Real-Time Notifications**: WebSocket-powered instant updates
+- **Protocol Event Tracking**: Monitor exploits, governance changes, and market events
+- **Emergency Alerts**: Critical risk notifications with recommended actions
 
-- [Final Source Code](https://www.theblockchaincoders.com/sourceCode/build-a-uniswap-v3-liquidity-creator-dapp-with-next.js-or-next.js-+-uniswap-v3-web3-defi-project)
+### 📈 **Advanced Analytics**
+- **Risk Correlation Matrix**: Understand how your positions correlate
+- **Volatility Analysis**: Historical and predicted volatility metrics
+- **Liquidity Depth Analysis**: Pool liquidity and slippage assessments
+- **Performance Benchmarking**: Compare against market indices and strategies
 
-#### Setup Video
+## 🛠️ Tech Stack
 
-- [Final Code Setup video](https://youtu.be/JyOiZFh5mbk?si=s9Ra2rj6phjyTLZ1)
+- **Frontend**: Next.js 13, React 18, TypeScript
+- **Styling**: Tailwind CSS, Ant Design
+- **Web3**: Wagmi, Viem, RainbowKit
+- **State Management**: React Query (TanStack Query)
+- **Charts**: Ant Design Charts
+- **Real-time**: WebSockets
+- **Backend Integration**: Rust-powered API
 
-🔧 What You’ll Learn:
+## 🚀 Quick Start
 
-- Setting up a Next.js Web3 frontend
-- Connecting to Uniswap V3 contracts
-- Adding and managing liquidity on Uniswap V3
-- Integrating WalletConnect/MetaMask
-- Deploying the DApp on Vercel
+### Prerequisites
 
-📦 Tech Stack:
+- **Node.js**: v18.17.1 or later
+- **NPM**: 8.19.2 or later
+- **Git**: Latest version
+- **Web3 Wallet**: MetaMask, WalletConnect, or similar
 
-- Uniswap V3 SDK & Smart Contracts
-- Next.js + Tailwind CSS
-- Ethers.js & Web3.js
-- Solidity (for optional extensions)
+### Installation
 
-💡 Ideal for intermediate developers looking to level up their DeFi and Web3 skills!
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/defi-risk-monitor/frontend.git
+   cd defi-risk-monitor
+   ```
 
-👉 Don't forget to like, comment, and subscribe for more full-stack blockchain projects.
+2. **Install dependencies**
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
 
-#UniswapV3 #DeFi #Nextjs #Web3 #Ethereum #LiquidityPool #CryptoDevelopment #UniswapTutorial
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env.local
+   ```
 
-#### Deploying Dapp
+4. **Configure your environment**
+   Edit `.env.local` with your API keys and configuration:
+   ```env
+   # Backend API
+   NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+   NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
+   
+   # Blockchain RPC URLs
+   NEXT_PUBLIC_ETHEREUM_RPC_URL=https://eth-mainnet.alchemyapi.io/v2/YOUR_KEY
+   NEXT_PUBLIC_POLYGON_RPC_URL=https://polygon-mainnet.alchemyapi.io/v2/YOUR_KEY
+   NEXT_PUBLIC_ARBITRUM_RPC_URL=https://arb-mainnet.alchemyapi.io/v2/YOUR_KEY
+   
+   # WalletConnect Project ID
+   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
+   
+   # Optional: Analytics
+   NEXT_PUBLIC_ANALYTICS_ID=your_analytics_id
+   ```
 
-```
-  WATCH: Hostinger
-  Get : Discount 75%
-  URL: https://www.hostg.xyz/aff_c?offer_id=6&aff_id=139422
-```
+5. **Start the development server**
+   ```bash
+   npm run dev
+   ```
 
-### MULTI-CURRENCY ICO DAPP
+6. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
-```
-  PROJECT: MULTI-CURRENCY ICO DAPP
-  Code: https://www.theblockchaincoders.com/sourceCode/multi-currency-ico-dapp-using-next.js-solidity-and-wagmi
-  VIDEO: https://youtu.be/j8NO8ea5zVo?si=jCmvfXmpmefwjhO5
-```
+### Backend Setup
 
-#### Install Vs Code Editor
+The frontend requires the Rust backend to be running. Please refer to the [backend documentation](../backend/README.md) for setup instructions.
 
-```
-  GET: VsCode Editor
-  URL: https://code.visualstudio.com/download
-```
+## 📱 Usage
 
-#### NodeJs & NPM Version
+### Connect Your Wallet
+1. Click "Connect Wallet" in the top-right corner
+2. Choose your preferred wallet (MetaMask, WalletConnect, etc.)
+3. Approve the connection request
 
-```
-  NodeJs: v18.17.1 / LATEST
-  NPM: 8.19.2
-  URL: https://nodejs.org/en/download
-  Video: https://youtu.be/PIR0oBVowXU?si=9eNdR29u37F2ujJJ
-```
+### Monitor Your Positions
+1. Your positions will automatically load after wallet connection
+2. View real-time risk scores and analytics
+3. Set up custom alert thresholds
+4. Monitor cross-chain exposures
 
-#### FINAL SOURCE CODE
-
-```
-  SETUP VIDEO:
-  URL: https://www.theblockchaincoders.com/sourceCode/build-a-uniswap-v3-liquidity-creator-dapp-with-next.js-or-next.js-+-uniswap-v3-web3-defi-project
-```
-
-All you need to follow the complete project and follow the instructions which are explained in the tutorial by Daulat
-
-## Final Code Instruction
-
-If you download the final source code then you can follow the following instructions to run the Dapp successfully
-
-#### reown
-
-```
-  OPEN: WALLET CONNECT
-  URL: https://docs.reown.com/cloud/relay
-```
-
-#### ALCHEMY
-
-```
-  OPEN: ALCHEMY.COM
-  URL: https://www.alchemy.com/
-```
+### Risk Analysis
+1. Click on any position to view detailed risk breakdown
+2. Understand impermanent loss projections
+3. Review MEV risk assessments
+4. Get actionable recommendations
 
 #### ARNK
 
