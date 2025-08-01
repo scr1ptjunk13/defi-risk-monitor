@@ -2,7 +2,7 @@ use std::fmt;
 use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
 use serde_json::json;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AppError {
     DatabaseError(String),
     BlockchainError(String),
