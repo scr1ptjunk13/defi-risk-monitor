@@ -2,12 +2,14 @@ use crate::models::{
     RiskAssessment, RiskAssessmentHistory, BulkRiskAssessment, RiskAssessmentFilter,
     RiskEntityType, RiskType, RiskSeverity
 };
+use crate::models::risk_assessment::*;
 use crate::error::AppError;
-use sqlx::{PgPool, Row};
-use uuid::Uuid;
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
+use sqlx::{PgPool, Row};
+use std::str::FromStr;
 use tracing::{info, warn, error};
+use uuid::Uuid;
 
 pub struct RiskAssessmentService {
     db_pool: PgPool,
@@ -37,12 +39,12 @@ impl RiskAssessmentService {
         let mut query_str = r#"
             SELECT 
                 id,
-                entity_type as "entity_type: RiskEntityType",
+                entity_type::text,
                 entity_id,
                 user_id,
-                risk_type as "risk_type: RiskType",
+                risk_type::text,
                 risk_score,
-                severity as "severity: RiskSeverity",
+                severity::text,
                 confidence,
                 description,
                 metadata,
@@ -67,17 +69,84 @@ impl RiskAssessmentService {
         param_count += 1;
         query_str.push_str(&format!(" LIMIT ${}", param_count));
 
-        let mut query = sqlx::query_as::<_, RiskAssessment>(&query_str)
-            .bind(entity_type)
-            .bind(entity_id);
+        // Use a simpler query approach to avoid enum mapping issues
+        let rows = if let Some(risk_type) = risk_type {
+            sqlx::query(&query_str)
+                .bind(entity_type)
+                .bind(entity_id)
+                .bind(risk_type)
+                .bind(cutoff_date)
+                .bind(limit)
+                .fetch_all(&self.db_pool)
+                .await?
+        } else {
+            sqlx::query(&query_str)
+                .bind(entity_type)
+                .bind(entity_id)
+                .bind(cutoff_date)
+                .bind(limit)
+                .fetch_all(&self.db_pool)
+                .await?
+        };
+
+        let mut assessments = Vec::new();
+        for row in rows {
+            // Parse snake_case enum values from database
+            let entity_type_str: String = row.get("entity_type");
+            let entity_type = match entity_type_str.as_str() {
+                "position" => RiskEntityType::Position,
+                "protocol" => RiskEntityType::Protocol,
+                "user" => RiskEntityType::User,
+                "portfolio" => RiskEntityType::Portfolio,
+                "pool" => RiskEntityType::Pool,
+                "token" => RiskEntityType::Token,
+                _ => RiskEntityType::Position,
+            };
             
-        if let Some(risk_type) = risk_type {
-            query = query.bind(risk_type);
+            let risk_type_str: String = row.get("risk_type");
+            let risk_type = match risk_type_str.as_str() {
+                "impermanent_loss" => RiskType::ImpermanentLoss,
+                "liquidity" => RiskType::Liquidity,
+                "protocol" => RiskType::Protocol,
+                "mev" => RiskType::Mev,
+                "cross_chain" => RiskType::CrossChain,
+                "market" => RiskType::Market,
+                "slippage" => RiskType::Slippage,
+                "correlation" => RiskType::Correlation,
+                "volatility" => RiskType::Volatility,
+                "overall" => RiskType::Overall,
+                _ => RiskType::Liquidity,
+            };
+            
+            let severity_str: String = row.get("severity");
+            let severity = match severity_str.as_str() {
+                "critical" => RiskSeverity::Critical,
+                "high" => RiskSeverity::High,
+                "medium" => RiskSeverity::Medium,
+                "low" => RiskSeverity::Low,
+                "minimal" => RiskSeverity::Minimal,
+                _ => RiskSeverity::Low,
+            };
+
+            let assessment = RiskAssessment {
+                id: row.get("id"),
+                entity_type,
+                entity_id: row.get("entity_id"),
+                user_id: row.get("user_id"),
+                risk_type,
+                risk_score: row.get("risk_score"),
+                severity,
+                confidence: row.get("confidence"),
+                description: row.get("description"),
+                metadata: row.get("metadata"),
+                expires_at: row.get("expires_at"),
+                is_active: row.get("is_active"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            };
+            assessments.push(assessment);
         }
         
-        query = query.bind(cutoff_date).bind(limit);
-
-        let assessments = query.fetch_all(&self.db_pool).await?;
         info!("Retrieved {} risk history records", assessments.len());
         Ok(assessments)
     }

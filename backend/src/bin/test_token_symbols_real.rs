@@ -10,10 +10,14 @@ use bigdecimal::BigDecimal;
 use uuid::Uuid;
 use std::str::FromStr;
 use chrono::Utc;
+use dotenvy;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🧪 Testing Real Token Symbol Fetching in Risk Explainability Service");
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
+    
+    println!("🧪 Testing Real Token Symbol Fetching in Risk Explainability Service\n");
     
     // Load settings
     let settings = Settings::new().expect("Failed to load settings");
