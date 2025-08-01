@@ -26,6 +26,12 @@ pub struct MetricsCollector {
     
     // System Health Metrics
     pub circuit_breaker_state: GaugeVec,
+    pub circuit_breaker_calls_total: CounterVec,
+    pub circuit_breaker_calls_successful: CounterVec,
+    pub circuit_breaker_calls_failed: CounterVec,
+    pub circuit_breaker_calls_rejected: CounterVec,
+    pub circuit_breaker_state_transitions: CounterVec,
+    pub circuit_breaker_half_open_calls: CounterVec,
     pub retry_attempts: CounterVec,
     pub error_count: CounterVec,
     
@@ -81,7 +87,37 @@ impl MetricsCollector {
         let circuit_breaker_state = GaugeVec::new(
             Opts::new("defi_circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 2=half-open)"),
             &["service"]
-        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker metric: {}", e)))?;
+        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker state metric: {}", e)))?;
+        
+        let circuit_breaker_calls_total = CounterVec::new(
+            Opts::new("defi_circuit_breaker_calls_total", "Total calls through circuit breaker"),
+            &["service"]
+        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker calls metric: {}", e)))?;
+        
+        let circuit_breaker_calls_successful = CounterVec::new(
+            Opts::new("defi_circuit_breaker_calls_successful_total", "Successful calls through circuit breaker"),
+            &["service"]
+        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker success metric: {}", e)))?;
+        
+        let circuit_breaker_calls_failed = CounterVec::new(
+            Opts::new("defi_circuit_breaker_calls_failed_total", "Failed calls through circuit breaker"),
+            &["service"]
+        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker failure metric: {}", e)))?;
+        
+        let circuit_breaker_calls_rejected = CounterVec::new(
+            Opts::new("defi_circuit_breaker_calls_rejected_total", "Rejected calls by circuit breaker"),
+            &["service"]
+        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker rejection metric: {}", e)))?;
+        
+        let circuit_breaker_state_transitions = CounterVec::new(
+            Opts::new("defi_circuit_breaker_state_transitions_total", "Circuit breaker state transitions"),
+            &["service", "from_state", "to_state"]
+        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker transition metric: {}", e)))?;
+        
+        let circuit_breaker_half_open_calls = CounterVec::new(
+            Opts::new("defi_circuit_breaker_half_open_calls_total", "Calls attempted in half-open state"),
+            &["service", "outcome"]
+        ).map_err(|e| AppError::InternalError(format!("Failed to create circuit breaker half-open metric: {}", e)))?;
         
         let retry_attempts = CounterVec::new(
             Opts::new("defi_retry_attempts_total", "Total retry attempts by service and outcome"),
@@ -115,6 +151,12 @@ impl MetricsCollector {
         registry.register(Box::new(blockchain_rpc_duration.clone()))?;
         registry.register(Box::new(database_query_duration.clone()))?;
         registry.register(Box::new(circuit_breaker_state.clone()))?;
+        registry.register(Box::new(circuit_breaker_calls_total.clone()))?;
+        registry.register(Box::new(circuit_breaker_calls_successful.clone()))?;
+        registry.register(Box::new(circuit_breaker_calls_failed.clone()))?;
+        registry.register(Box::new(circuit_breaker_calls_rejected.clone()))?;
+        registry.register(Box::new(circuit_breaker_state_transitions.clone()))?;
+        registry.register(Box::new(circuit_breaker_half_open_calls.clone()))?;
         registry.register(Box::new(retry_attempts.clone()))?;
         registry.register(Box::new(error_count.clone()))?;
         registry.register(Box::new(total_value_monitored.clone()))?;
@@ -133,6 +175,12 @@ impl MetricsCollector {
             blockchain_rpc_duration,
             database_query_duration,
             circuit_breaker_state,
+            circuit_breaker_calls_total,
+            circuit_breaker_calls_successful,
+            circuit_breaker_calls_failed,
+            circuit_breaker_calls_rejected,
+            circuit_breaker_state_transitions,
+            circuit_breaker_half_open_calls,
             retry_attempts,
             error_count,
             total_value_monitored,
@@ -189,6 +237,42 @@ impl MetricsCollector {
         self.circuit_breaker_state
             .with_label_values(&[service])
             .set(state as f64);
+    }
+    
+    /// Record circuit breaker call metrics
+    pub fn record_circuit_breaker_call(&self, service: &str, successful: bool, rejected: bool) {
+        self.circuit_breaker_calls_total
+            .with_label_values(&[service])
+            .inc();
+            
+        if rejected {
+            self.circuit_breaker_calls_rejected
+                .with_label_values(&[service])
+                .inc();
+        } else if successful {
+            self.circuit_breaker_calls_successful
+                .with_label_values(&[service])
+                .inc();
+        } else {
+            self.circuit_breaker_calls_failed
+                .with_label_values(&[service])
+                .inc();
+        }
+    }
+    
+    /// Record circuit breaker state transition
+    pub fn record_circuit_breaker_transition(&self, service: &str, from_state: &str, to_state: &str) {
+        self.circuit_breaker_state_transitions
+            .with_label_values(&[service, from_state, to_state])
+            .inc();
+    }
+    
+    /// Record half-open call attempt
+    pub fn record_half_open_call(&self, service: &str, successful: bool) {
+        let outcome = if successful { "success" } else { "failure" };
+        self.circuit_breaker_half_open_calls
+            .with_label_values(&[service, outcome])
+            .inc();
     }
     
     /// Record retry attempt
