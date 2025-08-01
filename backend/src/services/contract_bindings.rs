@@ -33,6 +33,19 @@ sol! {
     }
 }
 
+// ERC20 Token contract ABI definitions
+sol! {
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    interface IERC20 {
+        function name() external view returns (string memory);
+        function symbol() external view returns (string memory);
+        function decimals() external view returns (uint8);
+        function totalSupply() external view returns (uint256);
+        function balanceOf(address account) external view returns (uint256);
+    }
+}
+
 // Chainlink Aggregator V3 contract ABI definitions
 sol! {
     #[allow(missing_docs)]
@@ -177,6 +190,49 @@ impl ChainlinkAggregatorV3 {
         let result = self.contract.description().call().await
             .map_err(|e| format!("description call failed: {}", e))?;
         
+        Ok(result._0)
+    }
+
+    pub fn address(&self) -> Address {
+        self.address
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ERC20Token {
+    contract: IERC20::IERC20Instance<Http<Client>, RootProvider<Http<Client>>>,
+    address: Address,
+}
+
+impl ERC20Token {
+    pub fn new(
+        address: String,
+        provider: Arc<RootProvider<Http<Client>>>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let addr = Address::from_str(&address)?;
+        let contract = IERC20::new(addr, (*provider).clone());
+        
+        Ok(Self {
+            contract,
+            address: addr,
+        })
+    }
+
+    pub async fn symbol(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let result = self.contract.symbol().call().await
+            .map_err(|e| format!("symbol call failed: {}", e))?;
+        Ok(result._0)
+    }
+
+    pub async fn name(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let result = self.contract.name().call().await
+            .map_err(|e| format!("name call failed: {}", e))?;
+        Ok(result._0)
+    }
+
+    pub async fn decimals(&self) -> Result<u8, Box<dyn std::error::Error + Send + Sync>> {
+        let result = self.contract.decimals().call().await
+            .map_err(|e| format!("decimals call failed: {}", e))?;
         Ok(result._0)
     }
 

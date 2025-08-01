@@ -129,7 +129,7 @@ pub async fn explain_position_risk(
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
     // Create explainability service and generate explanation
-    let mut explainability_service = RiskExplainabilityService::new();
+    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
     
     let request = ExplainRiskRequest {
         position_id,
@@ -228,7 +228,7 @@ pub async fn get_risk_summary(
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
     // Generate explanation
-    let mut explainability_service = RiskExplainabilityService::new();
+    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
     let request = ExplainRiskRequest {
         position_id,
         user_address: params.user_address,
@@ -338,7 +338,7 @@ pub async fn get_risk_recommendations(
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
     // Generate explanation
-    let mut explainability_service = RiskExplainabilityService::new();
+    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
     let request = ExplainRiskRequest {
         position_id,
         user_address: params.user_address,
@@ -414,7 +414,7 @@ pub async fn get_market_context(
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
     // Generate market context
-    let mut explainability_service = RiskExplainabilityService::new();
+    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
     let request = ExplainRiskRequest {
         position_id,
         user_address: None,

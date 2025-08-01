@@ -9,9 +9,11 @@ use crate::models::{Position, PoolState};
 use crate::models::risk_explanation::*;
 use crate::services::risk_calculator::RiskMetrics;
 use crate::error::AppError;
+use crate::services::blockchain_service::BlockchainService;
 
 /// Service for generating explainable risk analysis
 pub struct RiskExplainabilityService {
+    blockchain_service: BlockchainService,
     /// Cache for risk explanations
     explanation_cache: HashMap<String, (RiskExplanation, DateTime<Utc>)>,
     /// Cache TTL in seconds
@@ -20,8 +22,9 @@ pub struct RiskExplainabilityService {
 
 impl RiskExplainabilityService {
     /// Create a new risk explainability service
-    pub fn new() -> Self {
+    pub fn new(blockchain_service: BlockchainService) -> Self {
         Self {
+            blockchain_service,
             explanation_cache: HashMap::new(),
             cache_ttl_seconds: 300, // 5 minutes
         }
@@ -81,9 +84,12 @@ impl RiskExplainabilityService {
         &self,
         explanation: &mut RiskExplanation,
         risk_metrics: &RiskMetrics,
-        _position: &Position,
+        position: &Position,
         _pool_state: &PoolState,
     ) -> Result<(), AppError> {
+        // Get real token symbols
+        let (token0_symbol, token1_symbol) = self.get_token_symbols(position).await;
+        
         // Impermanent Loss Factor
         if risk_metrics.impermanent_loss > BigDecimal::from(5) {
             let il_factor = RiskFactor {
@@ -95,8 +101,8 @@ impl RiskExplainabilityService {
                 explanation: format!(
                     "Your position is experiencing {}% impermanent loss due to price divergence between {} and {}. This means you would have more value if you simply held the tokens.",
                     risk_metrics.impermanent_loss,
-                    "TOKEN0", // TODO: Fetch actual token symbols
-                    "TOKEN1" // TODO: Fetch actual token symbols
+                    token0_symbol,
+                    token1_symbol
                 ),
                 current_value: Some(risk_metrics.impermanent_loss.clone()),
                 threshold_value: Some(BigDecimal::from(5)),
@@ -280,12 +286,15 @@ impl RiskExplainabilityService {
         position: &Position,
         pool_state: &PoolState,
     ) -> Result<(), AppError> {
+        // Get real token symbols
+        let (token0_symbol, token1_symbol) = self.get_token_symbols(position).await;
+        
         explanation.position_context = PositionContext {
             position_id: position.id,
             position_type: "uniswap_v3".to_string(),
             pool_info: PoolInfo {
                 pool_address: position.pool_address.clone(),
-                token_pair: format!("{}/{}", "TOKEN0", "TOKEN1"), // TODO: Fetch actual token symbols
+                token_pair: format!("{}/{}", token0_symbol, token1_symbol),
                 fee_tier: format!("{}%", position.fee_tier),
                 tvl_usd: pool_state.tvl_usd.clone().unwrap_or_else(|| BigDecimal::from(0)),
                 pool_age_days: 30, // Placeholder
@@ -319,15 +328,18 @@ impl RiskExplainabilityService {
         &self,
         explanation: &mut RiskExplanation,
         risk_metrics: &RiskMetrics,
-        _position: &Position,
+        position: &Position,
     ) -> Result<(), AppError> {
         let risk_level = &explanation.risk_level;
         let il_pct = &risk_metrics.impermanent_loss;
         
+        // Get real token symbols
+        let (token0_symbol, token1_symbol) = self.get_token_symbols(position).await;
+        
         explanation.set_summary(format!(
             "Your {}/{} position has {} risk (score: {:.2}) primarily due to {}% impermanent loss. {}",
-            "TOKEN0".to_string(), // TODO: Fetch actual token symbols
-            "TOKEN1".to_string(), // TODO: Fetch actual token symbols
+            token0_symbol,
+            token1_symbol,
             risk_level,
             risk_metrics.overall_risk_score,
             il_pct,
@@ -371,15 +383,42 @@ impl RiskExplainabilityService {
     }
 
     fn calculate_confidence_level(&self, risk_metrics: &RiskMetrics, _position: &Position) -> f64 {
-        // Simplified confidence calculation
-        let score_str = risk_metrics.overall_risk_score.to_string();
-        let score_f64 = score_str.parse::<f64>().unwrap_or(0.0);
-        if score_f64 > 0.8 {
-            0.9 // High confidence in high-risk scenarios
-        } else if score_f64 > 0.5 {
-            0.8 // Medium confidence
-        } else {
-            0.7 // Lower confidence in low-risk scenarios
+        // Base confidence starts high
+        let mut confidence: f64 = 0.85;
+        
+        // Reduce confidence for extreme values
+        if risk_metrics.overall_risk_score > BigDecimal::from(80) {
+            confidence -= 0.15;
         }
+        
+        // Reduce confidence for very new positions (less data)
+        confidence -= 0.05; // Placeholder reduction
+        
+        confidence.max(0.1) // Minimum 10% confidence
+    }
+
+    /// Helper method to get token symbols for a position
+    async fn get_token_symbols(&self, position: &Position) -> (String, String) {
+        let chain_id = position.chain_id; // Chain ID from position
+        
+        // Fetch token0 symbol
+        let token0_symbol = self.blockchain_service
+            .get_token_symbol(&position.token0_address, chain_id)
+            .await
+            .unwrap_or_else(|_| {
+                // Fallback to address abbreviation
+                format!("{}...", &position.token0_address[2..8].to_uppercase())
+            });
+        
+        // Fetch token1 symbol
+        let token1_symbol = self.blockchain_service
+            .get_token_symbol(&position.token1_address, chain_id)
+            .await
+            .unwrap_or_else(|_| {
+                // Fallback to address abbreviation
+                format!("{}...", &position.token1_address[2..8].to_uppercase())
+            });
+        
+        (token0_symbol, token1_symbol)
     }
 }

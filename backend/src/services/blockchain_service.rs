@@ -10,7 +10,7 @@ use url::Url;
 use std::sync::Arc;
 use std::str::FromStr;
 use crate::error::AppError;
-use crate::services::contract_bindings::{UniswapV3Pool, ChainlinkAggregatorV3, addresses};
+use crate::services::contract_bindings::{UniswapV3Pool, ChainlinkAggregatorV3, ERC20Token, addresses};
 use sqlx::PgPool;
 use bigdecimal::BigDecimal;
 use chrono::Utc;
@@ -152,12 +152,59 @@ impl BlockchainService {
     pub async fn get_block_number(&self, chain_id: i32) -> Result<u64, AppError> {
         let provider = self.get_provider_for_chain(chain_id)?;
         
-        let block_number = provider
-            .get_block_number()
-            .await
+        let block_number = provider.get_block_number().await
             .map_err(|e| AppError::BlockchainError(format!("Failed to get block number: {}", e)))?;
-            
+        
         Ok(block_number)
+    }
+
+    /// Get token symbol from contract address
+    pub async fn get_token_symbol(&self, token_address: &str, chain_id: i32) -> Result<String, AppError> {
+        let provider = self.get_provider_for_chain(chain_id)?;
+        
+        // Try to get symbol from ERC20 contract
+        match ERC20Token::new(token_address.to_string(), provider.clone()) {
+            Ok(token_contract) => {
+                match token_contract.symbol().await {
+                    Ok(symbol) => Ok(symbol),
+                    Err(_) => {
+                        // Fallback to address-based lookup or default
+                        self.get_token_symbol_fallback(token_address, chain_id)
+                    }
+                }
+            }
+            Err(_) => {
+                // Fallback to address-based lookup or default
+                self.get_token_symbol_fallback(token_address, chain_id)
+            }
+        }
+    }
+
+    /// Fallback method for getting token symbols when contract calls fail
+    fn get_token_symbol_fallback(&self, token_address: &str, chain_id: i32) -> Result<String, AppError> {
+        // Known token addresses mapping
+        let symbol = match (chain_id, token_address.to_lowercase().as_str()) {
+            // Ethereum mainnet
+            (1, "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2") => "WETH",
+            (1, "0xa0b86a33e6441b8e9e5c3c8e4e8b8e8e8e8e8e8e") => "USDC",
+            (1, "0xdac17f958d2ee523a2206206994597c13d831ec7") => "USDT",
+            (1, "0x6b175474e89094c44da98b954eedeac495271d0f") => "DAI",
+            (1, "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599") => "WBTC",
+            (1, "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984") => "UNI",
+            (1, "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9") => "AAVE",
+            (1, "0x514910771af9ca656af840dff83e8264ecf986ca") => "LINK",
+            // Polygon mainnet
+            (137, "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270") => "WMATIC",
+            (137, "0x2791bca1f2de4661ed88a30c99a7a9449aa84174") => "USDC",
+            (137, "0xc2132d05d31c914a87c6611c10748aeb04b58e8f") => "USDT",
+            // Default fallback
+            _ => {
+                // Use first 6 characters of address as symbol
+                return Ok(format!("{}...", &token_address[2..8].to_uppercase()));
+            }
+        };
+        
+        Ok(symbol.to_string())
     }
 
     fn get_provider_for_chain(&self, chain_id: i32) -> Result<&Arc<RootProvider<Http<Client>>>, AppError> {
