@@ -30,6 +30,7 @@ pub mod risk_assessment_service;
 pub mod risk_analytics_service;
 pub mod system_health_service;
 pub mod system_health_helpers;
+pub mod graceful_degradation;
 
 pub use blockchain_service::*;
 pub use contract_bindings::*;
