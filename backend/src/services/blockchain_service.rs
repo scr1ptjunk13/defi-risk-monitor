@@ -5,7 +5,6 @@ use crate::services::price_storage::PriceStorageService;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::http::{Client, Http},
-    primitives::U256,
 };
 use url::Url;
 use std::sync::Arc;

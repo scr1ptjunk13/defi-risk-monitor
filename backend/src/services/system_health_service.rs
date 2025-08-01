@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::database::{get_pool_stats, ConnectionPoolStats};
+use crate::database::connection::{get_pool_stats, ConnectionPoolStats};
 use sqlx::{PgPool, Row};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;

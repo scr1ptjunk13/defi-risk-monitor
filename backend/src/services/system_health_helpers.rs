@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::database::ConnectionPoolStats;
+use crate::database::connection::ConnectionPoolStats;
 use crate::services::system_health_service::*;
 use sqlx::{PgPool, Row};
 use tracing::warn;

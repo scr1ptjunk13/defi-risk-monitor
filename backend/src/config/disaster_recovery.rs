@@ -1,6 +1,55 @@
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
-use crate::database::replication::{DatabaseNode, DatabaseRole, FailoverConfig};
+// use crate::database::replication::{DatabaseNode, DatabaseRole, FailoverConfig};
+// Temporarily commented out until replication module is implemented
+
+// Placeholder types until replication module is implemented
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DatabaseRole {
+    Primary,
+    Replica,
+    Standby,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FailoverConfig {
+    pub timeout_seconds: u64,
+    pub max_retries: u32,
+    pub health_check_interval: Duration,
+    pub failure_threshold: u32,
+    pub recovery_threshold: u32,
+    pub max_replication_lag_ms: u64,
+    pub failover_timeout: Duration,
+    pub auto_failback: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseNode {
+    pub id: String,
+    pub host: String,
+    pub port: u16,
+    pub url: String,
+    pub role: DatabaseRole,
+    pub priority: u32,
+    pub max_connections: u32,
+    pub health_check_interval: Duration,
+    pub is_active: bool,
+}
+
+impl Default for FailoverConfig {
+    fn default() -> Self {
+        Self {
+            timeout_seconds: 30,
+            max_retries: 3,
+            health_check_interval: Duration::from_secs(5),
+            failure_threshold: 3,
+            recovery_threshold: 5,
+            max_replication_lag_ms: 1000,
+            failover_timeout: Duration::from_secs(30),
+            auto_failback: false,
+        }
+    }
+}
 
 /// Comprehensive disaster recovery configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -560,6 +609,8 @@ pub fn create_production_dr_config() -> DisasterRecoveryConfig {
             nodes: vec![
                 DatabaseNode {
                     id: "primary".to_string(),
+                    host: "localhost".to_string(),
+                    port: 5432,
                     url: std::env::var("DATABASE_PRIMARY_URL").unwrap_or_else(|_| "postgresql://localhost:5432/defi_risk_monitor".to_string()),
                     role: DatabaseRole::Primary,
                     priority: 100,
@@ -569,6 +620,8 @@ pub fn create_production_dr_config() -> DisasterRecoveryConfig {
                 },
                 DatabaseNode {
                     id: "replica_1".to_string(),
+                    host: "localhost".to_string(),
+                    port: 5433,
                     url: std::env::var("DATABASE_REPLICA1_URL").unwrap_or_else(|_| "postgresql://localhost:5433/defi_risk_monitor".to_string()),
                     role: DatabaseRole::Replica,
                     priority: 90,
@@ -578,6 +631,8 @@ pub fn create_production_dr_config() -> DisasterRecoveryConfig {
                 },
                 DatabaseNode {
                     id: "standby".to_string(),
+                    host: "localhost".to_string(),
+                    port: 5434,
                     url: std::env::var("DATABASE_STANDBY_URL").unwrap_or_else(|_| "postgresql://localhost:5434/defi_risk_monitor".to_string()),
                     role: DatabaseRole::Standby,
                     priority: 80,
@@ -587,6 +642,8 @@ pub fn create_production_dr_config() -> DisasterRecoveryConfig {
                 },
             ],
             failover_config: FailoverConfig {
+                timeout_seconds: 30,
+                max_retries: 3,
                 health_check_interval: Duration::from_secs(2), // More frequent for production
                 failure_threshold: 3,
                 recovery_threshold: 5,

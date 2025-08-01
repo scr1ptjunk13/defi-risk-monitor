@@ -5,8 +5,9 @@ use crate::models::*;
 use crate::database::{
     DatabaseSafetyService, DatabaseQueryService, DatabaseHealthMonitor,
     CriticalOperationContext, CriticalOperationType, CriticalOperationResult,
-    SystemHealthStatus, execute_with_retry
+    SystemHealthStatus
 };
+use crate::database::connection::execute_with_retry;
 use tracing::{info, warn, error, debug};
 use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
