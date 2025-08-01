@@ -28,6 +28,8 @@ pub mod comparative_analytics_service;
 pub mod portfolio_service;
 pub mod risk_assessment_service;
 pub mod risk_analytics_service;
+pub mod system_health_service;
+pub mod system_health_helpers;
 
 pub use blockchain_service::*;
 pub use contract_bindings::*;
@@ -48,6 +50,7 @@ pub use system_health_alerting::*;
 pub use system_health_integration::*;
 pub use websocket_service::*;
 pub use lp_analytics_service::*;
+pub use system_health_service::*;
 pub use pool_performance_service::*;
 pub use yield_farming_service::*;
 pub use comparative_analytics_service::*;

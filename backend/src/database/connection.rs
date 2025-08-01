@@ -30,7 +30,7 @@ impl Default for DatabaseConfig {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectionPoolStats {
     pub size: u32,
     pub idle: u32,

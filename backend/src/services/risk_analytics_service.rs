@@ -243,12 +243,12 @@ impl RiskAnalyticsService {
                     self.calculate_asset_correlation(asset_a, asset_b, cutoff_date).await?
                 };
                 
-                row_data.insert(asset_b.clone(), correlation_coefficient.clone());
+                row_data.insert(asset_b.to_string(), correlation_coefficient.clone());
                 
                 if i < j { // Only store upper triangle to avoid duplicates
                     correlations.push(CorrelationPair {
-                        asset_a: asset_a.clone(),
-                        asset_b: asset_b.clone(),
+                        asset_a: asset_a.to_string(),
+                        asset_b: asset_b.to_string(),
                         correlation_coefficient: correlation_coefficient.clone(),
                         confidence_level: "0.95".parse().unwrap(),
                         sample_size: time_period_days,
@@ -257,7 +257,7 @@ impl RiskAnalyticsService {
                 }
             }
             
-            matrix_data.insert(asset_a.clone(), row_data);
+            matrix_data.insert(asset_a.to_string(), row_data);
         }
         
         // Find strongest correlations
