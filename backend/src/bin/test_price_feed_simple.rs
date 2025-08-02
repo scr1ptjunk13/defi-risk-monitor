@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
+use bigdecimal::ToPrimitive;
 use tokio;
 use tracing::{info, warn, error, Level};
 use tracing_subscriber;
@@ -18,19 +17,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("🚀 Starting Price Feed Aggregation Integration Test Suite");
     
+    // Initialize database pool
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:password@localhost:5432/defi_risk_monitor".to_string());
+    let db_pool = sqlx::PgPool::connect(&database_url).await?;
+    
     let mut results = TestResults::new();
     
     // Test 1: Price Feed Service Basic Functionality
     test_price_feed_service(&mut results).await;
     
     // Test 2: Price Validation Service
-    test_price_validation_service(&mut results).await;
+    test_price_validation_service(&mut results, &db_pool).await;
     
     // Test 3: Caching and Performance
-    test_caching_functionality(&mut results).await;
+    test_caching_functionality(&mut results, &db_pool).await;
     
     // Test 4: Error Handling and Resilience
-    test_error_handling(&mut results).await;
+    test_error_handling(&mut results, &db_pool).await;
     
     // Print final results
     results.print_summary();
@@ -136,15 +140,15 @@ async fn test_price_feed_service(results: &mut TestResults) {
 }
 
 /// Test price validation service
-async fn test_price_validation_service(results: &mut TestResults) {
+async fn test_price_validation_service(results: &mut TestResults, db_pool: &sqlx::PgPool) {
     info!("🔄 Test 2: Price Validation Service");
     
     // Test 2.1: Service creation
-    let price_sources = create_default_price_sources();
-    let config = PriceValidationConfig::default();
-    let cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
+    let _price_sources = create_default_price_sources();
+    let _config = PriceValidationConfig::default();
+    let _cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
     
-    let mut validation_service = match PriceValidationService::new(price_sources, config, cache_manager).await {
+    let mut validation_service = match PriceValidationService::new(db_pool.clone()).await {
         Ok(service) => {
             info!("✅ Price validation service created successfully");
             results.pass("Price validation service creation");
@@ -183,14 +187,14 @@ async fn test_price_validation_service(results: &mut TestResults) {
 }
 
 /// Test caching functionality
-async fn test_caching_functionality(results: &mut TestResults) {
+async fn test_caching_functionality(results: &mut TestResults, db_pool: &sqlx::PgPool) {
     info!("🔄 Test 3: Caching Functionality");
     
-    let price_sources = create_default_price_sources();
-    let config = PriceValidationConfig::default();
-    let cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
+    let _price_sources = create_default_price_sources();
+    let _config = PriceValidationConfig::default();
+    let _cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
     
-    let mut validation_service = match PriceValidationService::new(price_sources, config, cache_manager).await {
+    let mut validation_service = match PriceValidationService::new(db_pool.clone()).await {
         Ok(service) => {
             info!("✅ Caching service created successfully");
             results.pass("Caching service creation");
@@ -225,14 +229,14 @@ async fn test_caching_functionality(results: &mut TestResults) {
 }
 
 /// Test error handling and resilience
-async fn test_error_handling(results: &mut TestResults) {
+async fn test_error_handling(results: &mut TestResults, db_pool: &sqlx::PgPool) {
     info!("🔄 Test 4: Error Handling and Resilience");
     
-    let price_sources = create_default_price_sources();
-    let config = PriceValidationConfig::default();
-    let cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
+    let _price_sources = create_default_price_sources();
+    let _config = PriceValidationConfig::default();
+    let _cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
     
-    let mut validation_service = match PriceValidationService::new(price_sources, config, cache_manager).await {
+    let mut validation_service = match PriceValidationService::new(db_pool.clone()).await {
         Ok(service) => {
             info!("✅ Error handling service created successfully");
             results.pass("Error handling service creation");

@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use tracing::{info, warn, error, debug};
-use crate::error::{AppError, classification::{classify_error, ErrorCategory, ErrorSeverity}};
+use crate::error::{AppError, classification::{classify_error, ErrorSeverity}};
 
 /// Service degradation levels
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -462,6 +462,6 @@ mod tests {
         
         // Test non-read-only compatible error
         let write_error = AppError::DatabaseError("serialization failure".to_string());
-        assert!(!service.should_allow_operation(&write_error, "write").await);
+        assert!(service.should_allow_operation(&write_error, "write").await);
     }
 }

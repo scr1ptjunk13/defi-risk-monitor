@@ -1,17 +1,15 @@
 use crate::database::advanced_pool::{
-    AdvancedConnectionPool, AdvancedPoolConfig, PoolLoadMetrics, 
-    ConnectionHealth, StatementCacheStats, PoolLoadTester, LoadTestResults
+    AdvancedConnectionPool, AdvancedPoolConfig, PoolLoadTester, LoadTestResults
 };
 use crate::error::AppError;
 use sqlx::PgPool;
-use tracing::{info, error, warn, debug};
+use tracing::{info, debug};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use num_traits::{ToPrimitive, FromPrimitive};
-use rust_decimal::Decimal;
 use bigdecimal::BigDecimal;
 
 /// Connection pool optimization service

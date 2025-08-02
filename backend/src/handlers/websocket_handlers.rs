@@ -6,7 +6,6 @@ use serde::Deserialize;
 use uuid::Uuid;
 use tracing::{info, warn};
 
-use crate::services::websocket_service::WebSocketService;
 use crate::AppState;
 
 /// Query parameters for WebSocket connections

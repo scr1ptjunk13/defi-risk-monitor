@@ -9,6 +9,18 @@ use std::time::Duration;
 use tokio::time;
 use tracing::{info, error};
 use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MonitoringStats {
+    pub total_positions_monitored: i64,
+    pub active_thresholds: i64,
+    pub alerts_last_24h: i64,
+    pub critical_alerts_active: i64,
+    pub avg_response_time_ms: BigDecimal,
+    pub uptime_percentage: BigDecimal,
+    pub last_check: DateTime<Utc>,
+}
 
 pub struct MonitoringService {
     db_pool: PgPool,
@@ -128,7 +140,9 @@ impl MonitoringService {
         // Generate alerts for violations
         for violation in violations {
             let alert = CreateAlert {
+                user_address: position.user_address.clone(),
                 position_id: Some(position.id),
+                threshold_id: None,
                 alert_type: "risk_threshold_violation".to_string(),
                 severity: self.determine_alert_severity(&risk_metrics),
                 title: "Risk Threshold Exceeded".to_string(),
@@ -136,6 +150,7 @@ impl MonitoringService {
                 risk_score: Some(risk_metrics.overall_risk_score.clone()),
                 current_value: None,
                 threshold_value: None,
+                metadata: None,
             };
 
             let alert = Alert::new(alert);

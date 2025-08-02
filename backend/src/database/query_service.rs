@@ -3,7 +3,6 @@ use crate::error::AppError;
 use tracing::{info, warn, error, debug};
 use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::collections::HashMap;
 
 /// Database query service with optimization and caching

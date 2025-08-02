@@ -1,7 +1,4 @@
-use defi_risk_monitor::database::{
-    AdvancedConnectionPool, AdvancedPoolConfig, ConnectionPoolService,
-    establish_connection,
-};
+use defi_risk_monitor::database::{ConnectionPoolService, AdvancedPoolConfig, establish_connection};
 use defi_risk_monitor::error::AppError;
 use sqlx::Row;
 use tracing::{info, error};

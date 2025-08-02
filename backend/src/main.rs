@@ -88,9 +88,6 @@ async fn start_web_server(
     settings: Settings,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use axum::{
-        extract::{Query, State},
-        http::StatusCode,
-        response::Json,
         routing::{get, post, put, delete},
         Router,
     };
@@ -117,11 +114,24 @@ async fn start_web_server(
         websocket_service,
     };
     
-    use defi_risk_monitor::handlers::portfolio_handlers::get_portfolio;
+    use defi_risk_monitor::handlers::{
+        create_auth_routes,
+        create_position_routes,
+        create_risk_routes,
+        create_portfolio_routes,
+        create_system_health_routes,
+        create_monitoring_routes,
+        create_price_feed_routes,
+        portfolio_handlers::get_portfolio,
+    };
+    
     let app = Router::new()
-        .route("/api/v1/portfolio", get(get_portfolio))
         // Health and basic endpoints
         .route("/health", get(defi_risk_monitor::handlers::health::health_check))
+        .route("/metrics", get(defi_risk_monitor::handlers::metrics::metrics_handler))
+        
+        // Legacy endpoints (keep for backward compatibility)
+        .route("/api/v1/portfolio", get(get_portfolio))
         .route("/risk/calculate", get(defi_risk_monitor::handlers::risk::calculate_risk))
         .route("/risk/calculate-realtime", get(defi_risk_monitor::handlers::risk::calculate_real_time_risk))
         .route("/alerts", get(defi_risk_monitor::handlers::alerts::list_alerts))
@@ -156,7 +166,16 @@ async fn start_web_server(
         .route("/api/v1/analytics/benchmark", get(defi_risk_monitor::handlers::analytics_handlers::get_benchmark_metrics))
         .route("/api/v1/analytics/rankings", get(defi_risk_monitor::handlers::analytics_handlers::get_performance_rankings))
         .route("/api/v1/analytics/lp-benchmark/:position_id", get(defi_risk_monitor::handlers::analytics_handlers::get_lp_benchmark))
-        // API v1 endpoints
+        // Comprehensive REST API v1 endpoints
+        .nest("/api/v1", create_auth_routes())
+        .nest("/api/v1", create_position_routes())
+        .nest("/api/v1", create_risk_routes())
+        .nest("/api/v1", create_portfolio_routes())
+        .nest("/api/v1", create_system_health_routes())
+        .nest("/api/v1", create_monitoring_routes())
+        .nest("/api/v1", create_price_feed_routes())
+        
+        // Existing specialized endpoints
         .nest("/api/v1", create_alert_routes())
         .nest("/api/v1/user-risk-config", create_user_risk_config_routes())
         .nest("/api/v1", create_webhook_routes())

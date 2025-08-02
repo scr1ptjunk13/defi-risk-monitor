@@ -1,9 +1,8 @@
-use crate::models::{Position, PoolState, PriceHistory};
+use crate::models::{Position, PoolState};
 use crate::error::types::AppError;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use chrono::{DateTime, Utc, Duration};
+use chrono::Utc;
 use sqlx::PgPool;
-use std::collections::HashMap;
 use std::str::FromStr;
 use num_traits::Zero;
 use tracing::info;

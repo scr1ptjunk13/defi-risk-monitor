@@ -1,7 +1,6 @@
 use sqlx::{PgPool, Row};
 use crate::error::{AppError, retry::{with_retry, RetryConfig}};
 use crate::retry_db_operation;
-use tracing::{info, debug};
 use uuid::Uuid;
 
 /// Database operations wrapper with built-in retry logic

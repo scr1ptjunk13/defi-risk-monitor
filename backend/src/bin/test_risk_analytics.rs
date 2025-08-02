@@ -1,5 +1,4 @@
 use defi_risk_monitor::services::risk_analytics_service::RiskAnalyticsService;
-use defi_risk_monitor::error::types::AppError;
 use sqlx::PgPool;
 use std::env;
 use chrono::{Utc, Duration};

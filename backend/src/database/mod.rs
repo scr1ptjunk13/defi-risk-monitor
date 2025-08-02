@@ -13,7 +13,7 @@ pub mod connection_pool_service;
 
 pub use migrations::*;
 pub use pool::*;
-pub use query_service::*;
+pub use query_service::{DatabaseQueryService, DatabaseHealthMonitor, QueryPerformanceMetrics, PaginatedResult};
 pub use safety_service::*;
 pub use operations::*;
 pub use retry_wrapper::*;

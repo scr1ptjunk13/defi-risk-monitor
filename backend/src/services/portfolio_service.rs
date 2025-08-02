@@ -6,8 +6,7 @@ use chrono::{DateTime, Utc, Duration};
 use sqlx::PgPool;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use tracing::{info, warn, error};
-use uuid::Uuid;
+use tracing::info;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PositionSummary {
@@ -353,10 +352,10 @@ impl PortfolioService {
                 .collect();
 
             let mut total_value = BigDecimal::from(0);
-            let mut realized_pnl = BigDecimal::from(0);
+            let realized_pnl = BigDecimal::from(0);
             let mut unrealized_pnl = BigDecimal::from(0);
-            let mut fees_earned = BigDecimal::from(50); // Placeholder
-            let mut impermanent_loss = BigDecimal::from(25); // Placeholder
+            let fees_earned = BigDecimal::from(50); // Placeholder
+            let impermanent_loss = BigDecimal::from(25); // Placeholder
 
             for position in &positions_at_time {
                 let entry_value = position.entry_token0_price_usd.clone().unwrap_or(BigDecimal::from(1000)) + 

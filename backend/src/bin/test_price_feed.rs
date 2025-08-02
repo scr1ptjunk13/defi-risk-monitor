@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let price_feed_service = PriceFeedService::new(create_default_providers())?;
     
     // Test with the ACTUAL USDC contract address on Ethereum
-    let usdc_address = "0xA0b86a33E6441b8e9E5C3C8E4E8B8E8E8E8E8E8E"; // This is still fake!
+    let _usdc_address = "0xA0b86a33E6441b8e9E5C3C8E4E8B8E8E8E8E8E8E"; // This is still fake!
     
     // Let's try with a known token - WETH (Wrapped Ethereum)
     let weth_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // Real WETH contract
@@ -39,11 +39,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test price validation service
     println!("\n🔍 Testing Price Validation Service...");
     
-    let cache_manager = CacheManager::new(None).await?;
-    let price_sources = create_default_price_sources();
-    let config = PriceValidationConfig::default();
+    // Initialize database pool
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:password@localhost:5432/defi_risk_monitor".to_string());
+    let db_pool = sqlx::PgPool::connect(&database_url).await?;
     
-    match PriceValidationService::new(price_sources, config, cache_manager).await {
+    let _cache_manager = CacheManager::new(None).await?;
+    let _price_sources = create_default_price_sources();
+    let _config = PriceValidationConfig::default();
+    
+    match PriceValidationService::new(db_pool.clone()).await {
         Ok(mut validation_service) => {
             println!("✅ Price validation service initialized successfully");
             

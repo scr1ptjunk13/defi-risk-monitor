@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
 use bigdecimal::{BigDecimal, FromPrimitive};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use reqwest::Client;
-use url::Url;
-use tokio::time::timeout;
-use tracing::{info, warn, error};
+use tracing::warn;
 use crate::error::types::AppError;
 
 /// Price feed provider configuration
@@ -196,7 +194,7 @@ impl PriceFeedService {
         provider: &PriceFeedProvider,
         token_info: &TokenInfo,
     ) -> Result<BigDecimal, AppError> {
-        let timeout_duration = Duration::from_secs(provider.timeout_seconds);
+        let _timeout_duration = Duration::from_secs(provider.timeout_seconds);
 
         let price_result = match provider.name.as_str() {
             "coingecko" => Self::fetch_from_coingecko(client, provider, token_info).await,

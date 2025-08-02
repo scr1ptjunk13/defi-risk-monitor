@@ -1,10 +1,9 @@
-use crate::models::{PoolState, Position};
+use crate::models::PoolState;
 use crate::error::types::AppError;
 use crate::services::lp_analytics_service::PoolPerformanceMetrics;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use chrono::{DateTime, Utc, Duration};
+use chrono::{Utc, Duration};
 use sqlx::PgPool;
-use std::collections::HashMap;
 use std::str::FromStr;
 use num_traits::Zero;
 use tracing::info;

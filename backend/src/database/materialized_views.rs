@@ -1,8 +1,8 @@
-use sqlx::{PgPool, Row, Postgres};
+use sqlx::{PgPool, Row};
 use crate::error::AppError;
-use tracing::{info, warn, error, debug, instrument};
-use std::time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
+use tracing::{info, warn, instrument};
+use std::time::Instant;
+use serde::Serialize;
 use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
 use std::sync::Arc;

@@ -1,10 +1,9 @@
-use sqlx::{PgPool, Transaction, Postgres};
+use sqlx::PgPool;
 use crate::error::AppError;
-use tracing::{info, warn, error, debug};
+use tracing::{warn, error};
 use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 
 /// Critical database safety service for high-value DeFi operations

@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("✅ Database migrations completed successfully");
     
     // Initialize services with proper configuration
-    let price_sources = vec![
+    let _price_sources = vec![
         PriceSource {
             name: "coingecko".to_string(),
             url: "https://api.coingecko.com/api/v3".to_string(),
@@ -38,20 +38,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     ];
     
-    let price_config = PriceValidationConfig {
-        max_deviation_percent: 5.0, // 5%
+    let _price_config = PriceValidationConfig {
+        max_deviation_percent: 10.0,
         min_sources_required: 1,
-        anomaly_threshold: 10.0,
+        anomaly_threshold: 15.0,
         price_staleness_seconds: 300,
     };
     
-    let cache_manager = CacheManager::new(None).await.map_err(|e| format!("Failed to initialize cache manager: {}", e))?;
+    // Initialize database pool
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:password@localhost:5432/defi_risk_monitor".to_string());
+    let db_pool = sqlx::PgPool::connect(&database_url).await.map_err(|e| format!("Failed to connect to database: {}", e))?;
     
-    let price_validation_service = PriceValidationService::new(
-        price_sources,
-        price_config,
-        cache_manager,
-    ).await.map_err(|e| format!("Failed to initialize price validation service: {}", e))?;
+    let _cache_manager = CacheManager::new(None).await.map_err(|e| format!("Failed to initialize cache manager: {}", e))?;
+    
+    let price_validation_service = PriceValidationService::new(db_pool.clone()).await.expect("Failed to create price validation service");
     
     let portfolio_service = PortfolioService::new(pool.clone(), price_validation_service).await;
     
@@ -192,7 +193,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("\n🔍 Performance Benchmarking...");
     let start_time = std::time::Instant::now();
     
-    for i in 0..10 {
+    for _i in 0..10 {
         let _ = portfolio_service.get_portfolio_performance(test_user_address, Some(30)).await;
         let _ = portfolio_service.get_asset_allocation(test_user_address).await;
         let _ = portfolio_service.get_protocol_exposure(test_user_address).await;

@@ -290,7 +290,9 @@ impl SystemHealthAlertingService {
 
         // Create and send alert
         let create_alert = CreateAlert {
+            user_address: "system".to_string(),
             position_id: None,
+            threshold_id: None,
             alert_type: format!("system_health_{}", alert_key),
             severity,
             title: title.to_string(),
@@ -298,6 +300,7 @@ impl SystemHealthAlertingService {
             risk_score: None,
             current_value: current_value.map(|v| BigDecimal::from_str(&v.to_string()).unwrap_or_default()),
             threshold_value: threshold_value.map(|v| BigDecimal::from_str(&v.to_string()).unwrap_or_default()),
+            metadata: None,
         };
 
         let alert = Alert::new(create_alert);

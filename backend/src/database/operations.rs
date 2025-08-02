@@ -1,5 +1,4 @@
-use sqlx::{PgPool, Transaction, Postgres};
-use std::str::FromStr;
+use sqlx::{PgPool, Postgres};
 use crate::error::AppError;
 use crate::models::*;
 use crate::database::{
@@ -7,9 +6,6 @@ use crate::database::{
     CriticalOperationContext, CriticalOperationType, CriticalOperationResult,
     SystemHealthStatus
 };
-use crate::database::connection::execute_with_retry;
-use tracing::{info, warn, error, debug};
-use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use bigdecimal::BigDecimal;

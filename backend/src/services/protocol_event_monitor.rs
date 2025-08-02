@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::collections::HashMap;
 use tokio::time::{interval, Duration};
 use tracing::{info, warn, error};
 use sqlx::PgPool;
@@ -442,7 +441,9 @@ impl ProtocolEventMonitorService {
                     // Create alert object for the service
                 let alert = crate::models::Alert {
                     id: uuid::Uuid::new_v4(),
+                    user_address: config.user_address.clone(),
                     position_id: None,
+                    threshold_id: None,
                     alert_type: "protocol_event".to_string(),
                     severity: match event.severity {
                         EventSeverity::Critical => "critical".to_string(),
@@ -456,6 +457,7 @@ impl ProtocolEventMonitorService {
                     risk_score: Some(event.impact_score.clone()),
                     current_value: None,
                     threshold_value: None,
+                    metadata: None,
                     is_resolved: false,
                     resolved_at: None,
                     created_at: chrono::Utc::now(),

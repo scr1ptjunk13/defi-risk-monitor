@@ -3,11 +3,9 @@ use chrono::{DateTime, Utc, Duration};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
-use uuid::Uuid;
 use crate::error::types::AppError;
-use crate::models::risk_assessment::{RiskType, RiskSeverity};
 use num_traits::Zero;
-use tracing::{info, warn, error};
+use tracing::info;
 
 // Risk Analytics Data Structures
 
@@ -131,7 +129,7 @@ impl RiskAnalyticsService {
         
         let start_date = start_date.unwrap_or(Utc::now() - Duration::days(30));
         let end_date = end_date.unwrap_or(Utc::now());
-        let granularity_hours = granularity_hours.unwrap_or(24); // Daily by default
+        let _granularity_hours = granularity_hours.unwrap_or(24); // Daily by default
         
         // Get risk assessments with time bucketing
         let rows = sqlx::query(
@@ -682,7 +680,7 @@ impl RiskAnalyticsService {
     async fn calculate_asset_correlation(
         &self,
         asset_a: &str,
-        asset_b: &str,
+        _asset_b: &str,
         cutoff_date: DateTime<Utc>,
     ) -> Result<BigDecimal, AppError> {
         // Simplified correlation calculation using position entry prices

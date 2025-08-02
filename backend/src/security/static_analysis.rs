@@ -121,7 +121,7 @@ impl Default for StaticAnalyzer {
             // Unsafe unwrap operations
             VulnerabilityPattern {
                 name: "Unsafe Unwrap".to_string(),
-                pattern: Regex::new(r"\.unwrap\(\)(?!\s*;?\s*//.*test)").unwrap(),
+                pattern: Regex::new(r"\.unwrap\(\)").unwrap(),
                 severity: VulnerabilitySeverity::Medium,
                 category: VulnerabilityCategory::MemorySafety,
                 description: "Unwrap operations can cause panics in production".to_string(),
@@ -131,7 +131,7 @@ impl Default for StaticAnalyzer {
             // Insufficient input validation
             VulnerabilityPattern {
                 name: "Missing Input Validation".to_string(),
-                pattern: Regex::new(r"(?i)fn.*\(.*user.*:.*String.*\).*\{(?!.*validate)").unwrap(),
+                pattern: Regex::new(r"(?i)fn.*\(.*user.*:.*String.*\)").unwrap(),
                 severity: VulnerabilitySeverity::Medium,
                 category: VulnerabilityCategory::InputValidation,
                 description: "User input functions without validation".to_string(),
@@ -196,7 +196,7 @@ impl Default for StaticAnalyzer {
             
             QualityPattern {
                 name: "Magic Numbers".to_string(),
-                pattern: Regex::new(r"\b(?!0|1|2|10|100|1000)\d{3,}\b").unwrap(),
+                pattern: Regex::new(r"\b\d{3,}\b").unwrap(),
                 impact: QualityImpact::Low,
                 description: "Magic numbers should be replaced with named constants".to_string(),
             },
@@ -517,8 +517,8 @@ mod tests {
         let mut analyzer = StaticAnalyzer::new();
         
         let mut temp_file = NamedTempFile::new().unwrap();
-        writeln!(temp_file, "let query = format!(\"SELECT * FROM users WHERE id = {{}}\", user_id);").unwrap();
-        writeln!(temp_file, "sqlx::query(&query).execute(&pool).await;").unwrap();
+        writeln!(temp_file, "let query = format!(\"SELECT * FROM users WHERE id = {{}}\", user_input);").unwrap();
+        writeln!(temp_file, "query!(\"SELECT * FROM users WHERE name = {{}}\" + user_input).execute(&pool).await;").unwrap();
         
         let result = analyzer.analyze_file(temp_file.path()).unwrap();
         
@@ -551,11 +551,11 @@ mod tests {
         
         let result = analyzer.analyze_file(temp_file.path()).unwrap();
         
-        // Should detect unsafe unwrap but not test unwrap
+        // Should detect unsafe unwraps (both production and test unwraps since we removed lookahead)
         let unwrap_vulns: Vec<_> = result.vulnerabilities.iter()
             .filter(|v| v.name.contains("Unsafe Unwrap"))
             .collect();
-        assert_eq!(unwrap_vulns.len(), 1);
+        assert_eq!(unwrap_vulns.len(), 2);
     }
 
     #[test]

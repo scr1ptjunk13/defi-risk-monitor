@@ -1,11 +1,10 @@
-use crate::models::{Position, PoolState};
+use crate::models::Position;
 use crate::services::{
     lp_analytics_service::{LpAnalyticsService, LpReturns, PoolPerformanceMetrics},
     pool_performance_service::PoolPerformanceService,
     yield_farming_service::{YieldFarmingService, YieldFarmingMetrics, FarmingStrategy, OptimalAllocation},
     comparative_analytics_service::{ComparativeAnalyticsService, PoolComparison, BenchmarkMetrics, PerformanceRanking},
 };
-use crate::error::types::AppError;
 use crate::AppState;
 use axum::{
     extract::{Path, Query, State},
@@ -14,7 +13,6 @@ use axum::{
 };
 use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]

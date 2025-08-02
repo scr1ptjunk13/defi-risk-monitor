@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
-use tracing::{info, warn};
 use num_traits::FromPrimitive;
 
 use crate::models::{Position, PoolState};

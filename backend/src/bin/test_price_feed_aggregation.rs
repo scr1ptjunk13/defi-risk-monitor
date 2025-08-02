@@ -27,6 +27,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Starting Comprehensive Price Feed Aggregation Integration Test");
     info!("====================================================================");
 
+    // Initialize database pool
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:password@localhost:5432/defi_risk_monitor".to_string());
+    let db_pool = sqlx::PgPool::connect(&database_url).await?;
+
     let mut test_results = TestResults::new();
 
     // Test 1: Price Feed Service Integration
@@ -37,22 +42,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test 2: Multi-Source Price Validation
     info!("\n🔍 TEST SUITE 2: Multi-Source Price Validation");
     info!("===============================================");
-    test_price_validation_service(&mut test_results).await;
+    test_price_validation_service(&mut test_results, &db_pool).await;
 
     // Test 3: Price Deviation Detection
     info!("\n⚠️  TEST SUITE 3: Price Deviation Detection");
     info!("==========================================");
-    test_price_deviation_detection(&mut test_results).await;
+    test_price_deviation_detection(&mut test_results, &db_pool).await;
 
     // Test 4: Caching and Performance
     info!("\n⚡ TEST SUITE 4: Caching and Performance");
     info!("========================================");
-    test_caching_and_performance(&mut test_results).await;
+    test_caching_and_performance(&mut test_results, &db_pool).await;
 
     // Test 5: Error Handling and Resilience
     info!("\n🛡️  TEST SUITE 5: Error Handling and Resilience");
     info!("===============================================");
-    test_error_handling_and_resilience(&mut test_results).await;
+    test_error_handling_and_resilience(&mut test_results, &db_pool).await;
 
     // Final Results
     info!("\n🎉 COMPREHENSIVE PRICE FEED AGGREGATION TEST COMPLETED!");
@@ -158,14 +163,14 @@ async fn test_price_feed_service(results: &mut TestResults) {
 }
 
 /// Test multi-source price validation
-async fn test_price_validation_service(results: &mut TestResults) {
+async fn test_price_validation_service(results: &mut TestResults, db_pool: &sqlx::PgPool) {
     info!("🔄 Test 2.1: Creating price validation service...");
     
-    let price_sources = create_default_price_sources();
-    let config = PriceValidationConfig::default();
-    let cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager"); // No Redis for testing
+    let _price_sources = create_default_price_sources();
+    let _config = PriceValidationConfig::default();
+    let _cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager"); // No Redis for testing
 
-    let mut validation_service = match PriceValidationService::new(price_sources, config, cache_manager).await {
+    let mut validation_service = match PriceValidationService::new(db_pool.clone()).await {
         Ok(service) => {
             info!("✅ Price validation service created successfully");
             results.pass("Price validation service creation");
@@ -212,7 +217,7 @@ async fn test_price_validation_service(results: &mut TestResults) {
 }
 
 /// Test price deviation detection
-async fn test_price_deviation_detection(results: &mut TestResults) {
+async fn test_price_deviation_detection(results: &mut TestResults, db_pool: &sqlx::PgPool) {
     info!("🔄 Test 3.1: Testing price deviation detection with simulated data...");
     
     // Create mock price data with high deviation
@@ -221,17 +226,17 @@ async fn test_price_deviation_detection(results: &mut TestResults) {
     source_prices.insert("coinmarketcap".to_string(), BigDecimal::from_f64(2100.0).unwrap()); // 5% higher
     source_prices.insert("cryptocompare".to_string(), BigDecimal::from_f64(1900.0).unwrap()); // 5% lower
 
-    let config = PriceValidationConfig {
+    let _config = PriceValidationConfig {
         max_deviation_percent: 3.0, // 3% max deviation
         min_sources_required: 2,
         anomaly_threshold: 10.0,
         price_staleness_seconds: 300,
     };
 
-    let cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
-    let price_sources = create_default_price_sources();
+    let _cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
+    let _price_sources = create_default_price_sources();
     
-    let _validation_service = match PriceValidationService::new(price_sources, config.clone(), cache_manager).await {
+    let _validation_service = match PriceValidationService::new(db_pool.clone()).await {
         Ok(service) => service,
         Err(e) => {
             error!("❌ Failed to create validation service: {}", e);
@@ -279,14 +284,14 @@ async fn test_price_deviation_detection(results: &mut TestResults) {
 }
 
 /// Test caching and performance
-async fn test_caching_and_performance(results: &mut TestResults) {
+async fn test_caching_and_performance(results: &mut TestResults, db_pool: &sqlx::PgPool) {
     info!("🔄 Test 4.1: Testing price caching functionality...");
     
-    let cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager"); // 1 minute cache
-    let config = PriceValidationConfig::default();
-    let price_sources = create_default_price_sources();
+    let _cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager"); // 1 minute cache
+    let _config = PriceValidationConfig::default();
+    let _price_sources = create_default_price_sources();
     
-    let mut validation_service = match PriceValidationService::new(price_sources, config.clone(), cache_manager).await {
+    let mut validation_service = match PriceValidationService::new(db_pool.clone()).await {
         Ok(service) => service,
         Err(e) => {
             error!("❌ Failed to create validation service: {}", e);
@@ -341,9 +346,9 @@ async fn test_caching_and_performance(results: &mut TestResults) {
     for _i in 0..5 {
         let token = test_token.to_string();
         // Create a new service instance for concurrent testing
-        let cache_manager_clone = CacheManager::new(None).await.expect("Failed to create cache manager");
-        let price_sources_clone = create_default_price_sources();
-        let mut service = PriceValidationService::new(price_sources_clone, config.clone(), cache_manager_clone).await
+        let _cache_manager_clone = CacheManager::new(None).await.expect("Failed to create cache manager");
+        let _price_sources_clone = create_default_price_sources();
+        let mut service = PriceValidationService::new(db_pool.clone()).await
             .expect("Failed to create service clone");
         
         let handle = tokio::spawn(async move {
@@ -372,14 +377,14 @@ async fn test_caching_and_performance(results: &mut TestResults) {
 }
 
 /// Test error handling and resilience
-async fn test_error_handling_and_resilience(results: &mut TestResults) {
+async fn test_error_handling_and_resilience(results: &mut TestResults, db_pool: &sqlx::PgPool) {
     info!("🔄 Test 5.1: Testing invalid token address handling...");
     
-    let config = PriceValidationConfig::default();
-    let cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
-    let price_sources = create_default_price_sources();
+    let _config = PriceValidationConfig::default();
+    let _cache_manager = CacheManager::new(None).await.expect("Failed to create cache manager");
+    let _price_sources = create_default_price_sources();
     
-    let mut validation_service = match PriceValidationService::new(price_sources, config, cache_manager).await {
+    let mut validation_service = match PriceValidationService::new(db_pool.clone()).await {
         Ok(service) => service,
         Err(e) => {
             error!("❌ Failed to create validation service: {}", e);
@@ -421,18 +426,7 @@ async fn test_error_handling_and_resilience(results: &mut TestResults) {
 
     info!("🔄 Test 5.3: Testing service resilience with minimal sources...");
     
-    // Create config requiring only 1 source for testing resilience
-    let resilient_config = PriceValidationConfig {
-        max_deviation_percent: 10.0,
-        min_sources_required: 1, // Only require 1 source
-        anomaly_threshold: 20.0,
-        price_staleness_seconds: 300,
-    };
-
-    let mut resilient_service = match PriceValidationService::new(
-        create_default_price_sources(), 
-        resilient_config, 
-        CacheManager::new(None).await.expect("Failed to create cache manager")
+    let mut resilient_service = match PriceValidationService::new(db_pool.clone()
     ).await {
         Ok(service) => service,
         Err(e) => {

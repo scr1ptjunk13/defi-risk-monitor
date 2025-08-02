@@ -1,14 +1,12 @@
 use crate::models::{
-    RiskAssessment, RiskAssessmentHistory, BulkRiskAssessment, RiskAssessmentFilter,
+    RiskAssessment, BulkRiskAssessment,
     RiskEntityType, RiskType, RiskSeverity
 };
-use crate::models::risk_assessment::*;
 use crate::error::AppError;
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
-use std::str::FromStr;
-use tracing::{info, warn, error};
+use tracing::info;
 use uuid::Uuid;
 
 pub struct RiskAssessmentService {

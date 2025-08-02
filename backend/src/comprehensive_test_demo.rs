@@ -1,5 +1,3 @@
-use bigdecimal::BigDecimal;
-use std::str::FromStr;
 
 /// Simple comprehensive test demonstration that actually compiles and runs
 /// This shows the testing infrastructure works and can be expanded

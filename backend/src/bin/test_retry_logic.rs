@@ -4,9 +4,7 @@ use defi_risk_monitor::{retry_db_operation, retry_api_operation, retry_blockchai
 use std::env;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
-use tracing::{info, error, warn};
-use tracing_subscriber;
-use uuid::Uuid;
+use tracing::{info, error};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

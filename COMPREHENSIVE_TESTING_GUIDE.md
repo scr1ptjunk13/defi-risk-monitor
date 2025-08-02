@@ -31,10 +31,6 @@ backend/tests/
 │   └── security_tests.rs                # Authentication, authorization, input validation
 └── performance/
     └── load_tests.rs                     # Load testing and performance validation
-
-frontend/tests/
-└── e2e/
-    └── comprehensive_e2e_tests.spec.ts  # End-to-end user workflow tests
 ```
 
 ## 🚀 Quick Start
@@ -50,7 +46,6 @@ frontend/tests/
 ./run_comprehensive_tests.sh integration   # Backend integration tests  
 ./run_comprehensive_tests.sh security      # Security tests
 ./run_comprehensive_tests.sh performance   # Performance/load tests
-./run_comprehensive_tests.sh e2e          # Frontend E2E tests
 ```
 
 ## 📊 Test Categories
@@ -177,33 +172,7 @@ async fn test_concurrent_position_operations() {
 }
 ```
 
-### 5. Frontend E2E Tests (`frontend/tests/e2e/comprehensive_e2e_tests.spec.ts`)
 
-**Focus**: Complete user workflows and real-time functionality
-
-**Key Test Areas**:
-- Authentication flow (login, wallet connection)
-- Risk dashboard functionality (real-time updates, navigation)
-- Position management (create, edit, delete, filtering)
-- Analytics and charts (interactive charts, time ranges)
-- Alert management (creation, configuration, history)
-- Explainable AI interface (chat, predictions)
-- Responsive design (mobile, tablet viewports)
-- Error handling (network errors, invalid data, session expiration)
-
-**Example Test**:
-```typescript
-test('should complete full authentication workflow', async () => {
-  await page.click('[data-testid="login-button"]');
-  await expect(page).toHaveURL(/.*\/login/);
-  
-  await page.fill('[data-testid="username-input"]', 'testuser@example.com');
-  await page.fill('[data-testid="password-input"]', 'TestPassword123!');
-  await page.click('[data-testid="submit-login"]');
-  
-  await expect(page).toHaveURL(/.*\/dashboard/);
-});
-```
 
 ## 🎯 Critical Test Scenarios
 
@@ -237,7 +206,7 @@ test('should complete full authentication workflow', async () => {
 - **Integration Tests**: 95%+ pass rate
 - **Security Tests**: 100% pass rate (no exceptions)
 - **Performance Tests**: 90%+ pass rate
-- **E2E Tests**: 85%+ pass rate
+
 
 ### Performance Benchmarks
 
@@ -294,14 +263,7 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
    docker ps | grep postgres
    ```
 
-2. **Frontend E2E Test Failures**
-   ```bash
-   # Ensure frontend server is running
-   cd frontend && npm run dev
-   
-   # Install missing Playwright dependencies
-   npx playwright install-deps
-   ```
+
 
 3. **Performance Test Timeouts**
    ```bash
@@ -318,7 +280,7 @@ The test runner generates comprehensive reports:
 
 - **Console Output**: Real-time test progress and results
 - **test_results.txt**: Summary of all test suite results
-- **HTML Reports**: Playwright generates detailed HTML reports for E2E tests
+
 - **JSON/XML Reports**: Machine-readable test results for CI/CD integration
 
 ### Metrics Tracked
@@ -362,7 +324,7 @@ Before considering the DeFi Risk Monitor production-ready:
 - [ ] Integration tests pass (95%+)
 - [ ] Security tests pass (100%)
 - [ ] Performance benchmarks met
-- [ ] E2E user workflows validated
+
 - [ ] Load testing completed successfully
 - [ ] Memory leaks identified and fixed
 - [ ] Database performance optimized

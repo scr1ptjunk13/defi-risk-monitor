@@ -5,8 +5,6 @@ use bigdecimal::{BigDecimal, Zero};
 use sqlx::PgPool;
 use std::str::FromStr;
 use tracing::info;
-use uuid::Uuid;
-use chrono::Utc;
 
 #[derive(Debug, Clone)]
 struct ChainLiquidityMetrics {

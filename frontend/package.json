@@ -2,7 +2,13 @@
   "name": "defi-risk-monitor",
   "version": "1.0.0",
   "description": "Advanced DeFi Risk Monitoring Dashboard - Real-time position tracking, risk analytics, and MEV protection",
-  "keywords": ["defi", "risk-monitoring", "portfolio-management", "mev-protection", "liquidity-analysis"],
+  "keywords": [
+    "defi",
+    "risk-monitoring",
+    "portfolio-management",
+    "mev-protection",
+    "liquidity-analysis"
+  ],
   "author": "DeFi Risk Monitor Team",
   "license": "MIT",
   "homepage": "https://github.com/defi-risk-monitor/frontend",
@@ -38,6 +44,7 @@
     "web3modal": "^1.9.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@tailwindcss/forms": "^0.5.9",
     "@types/d3-dispatch": "^3.0.6",
     "@types/d3-dsv": "^3.0.7",

@@ -42,8 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let position_service = PositionService::new(pool.clone(), blockchain_service.clone());
     let risk_assessment_service = RiskAssessmentService::new(pool.clone());
     let user_risk_config_service = UserRiskConfigService::new(pool.clone());
-    let mev_risk_service = MevRiskService::new(pool.clone(), None, Some(blockchain_service.clone()), None);
-    let cross_chain_risk_service = CrossChainRiskService::new(pool.clone(), None);
+    let _mev_risk_service = MevRiskService::new(pool.clone(), None, Some(blockchain_service.clone()), None);
+    let _cross_chain_risk_service = CrossChainRiskService::new(pool.clone(), None);
     let system_health_service = SystemHealthService::new(pool.clone());
     
     info!("✅ All services initialized");

@@ -255,7 +255,9 @@ impl AlertEngine {
         };
 
         let create_alert = CreateAlert {
+            user_address: position.user_address.clone(),
             position_id: Some(position.id),
+            threshold_id: Some(threshold.id),
             alert_type: format!("{:?}", threshold_type),
             severity,
             title,
@@ -263,6 +265,7 @@ impl AlertEngine {
             risk_score: Some(current_value.clone()),
             current_value: Some(current_value.clone()),
             threshold_value: Some(threshold.threshold_value.clone()),
+            metadata: None,
         };
 
         Ok(Alert::new(create_alert))

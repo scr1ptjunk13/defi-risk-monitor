@@ -63,6 +63,18 @@ pub struct ValidatedPrice {
     pub anomaly_detected: bool,
 }
 
+/// Price validation result for handlers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PriceValidation {
+    pub token_address: String,
+    pub sources_checked: Vec<String>,
+    pub prices_found: HashMap<String, BigDecimal>,
+    pub is_valid: bool,
+    pub confidence_score: BigDecimal,
+    pub deviation_percentage: BigDecimal,
+    pub validation_timestamp: chrono::DateTime<chrono::Utc>,
+}
+
 /// Price anomaly detection result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceAnomaly {
@@ -105,7 +117,28 @@ pub struct PriceValidationService {
 }
 
 impl PriceValidationService {
-    pub async fn new(
+    /// Simple constructor for handlers that just need basic functionality
+    pub async fn new(_db_pool: sqlx::PgPool) -> Result<Self, AppError> {
+        let sources = create_default_price_sources();
+        let config = PriceValidationConfig::default();
+        let cache_manager = CacheManager::new(Some("price_validation")).await?;
+        
+        let sources_map: HashMap<String, PriceSource> = sources
+            .into_iter()
+            .map(|source| (source.name.clone(), source))
+            .collect();
+            
+        Ok(Self {
+            sources: sources_map,
+            config,
+            cache_manager,
+            price_history: HashMap::new(),
+            fault_tolerant_service: FaultTolerantService::new("price_validation", RetryConfig::default()),
+            price_feed_service: PriceFeedService::new(vec![])?,
+        })
+    }
+
+    pub async fn new_with_config(
         sources: Vec<PriceSource>,
         config: PriceValidationConfig,
         cache_manager: CacheManager,

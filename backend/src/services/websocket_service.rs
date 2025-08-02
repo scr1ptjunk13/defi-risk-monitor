@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use bigdecimal::BigDecimal;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 use crate::models::Alert;
 use crate::services::risk_calculator::RiskMetrics;

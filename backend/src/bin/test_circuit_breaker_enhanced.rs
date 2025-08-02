@@ -4,7 +4,7 @@ use defi_risk_monitor::utils::fault_tolerance::{
 use defi_risk_monitor::error::AppError;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{info, warn, error};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

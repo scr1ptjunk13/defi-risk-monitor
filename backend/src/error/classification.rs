@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use tracing::{warn, debug, error, info};
+use tracing::{warn, debug};
 use crate::error::AppError;
 
 /// Error classification categories for better error handling

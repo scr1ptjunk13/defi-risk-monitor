@@ -1,17 +1,15 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     response::Json,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::models::risk_explanation::*;
 use crate::services::{
     risk_explainability_service::RiskExplainabilityService,
     risk_calculator::RiskCalculator,
-    blockchain_service::BlockchainService,
 };
 use crate::error::AppError;
 use crate::AppState;

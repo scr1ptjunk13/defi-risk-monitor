@@ -12,6 +12,15 @@ pub mod protocol_event_handlers;
 pub mod analytics_handlers;
 pub mod portfolio_handlers;
 
+// New comprehensive API handlers
+pub mod auth_handlers;
+pub mod position_handlers;
+pub mod risk_handlers;
+pub mod portfolio_handlers_complete;
+pub mod system_health_handlers;
+pub mod monitoring_handlers;
+pub mod price_feed_handlers;
+
 // Explicitly re-export only what's needed from each module
 pub use health::health_check;
 pub use metrics::metrics_handler;
@@ -53,3 +62,12 @@ pub use alert_handlers::{
 };
 pub use user_risk_config_handlers::create_user_risk_config_routes;
 pub use webhook_handlers::create_webhook_routes;
+
+// Export new comprehensive API route creators
+pub use auth_handlers::create_auth_routes;
+pub use position_handlers::create_position_routes;
+pub use risk_handlers::create_risk_routes;
+pub use portfolio_handlers_complete::create_portfolio_routes;
+pub use system_health_handlers::create_system_health_routes;
+pub use monitoring_handlers::create_monitoring_routes;
+pub use price_feed_handlers::create_price_feed_routes;

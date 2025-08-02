@@ -1,8 +1,8 @@
 use defi_risk_monitor::models::{
-    RiskAssessment, BulkRiskAssessment, RiskEntityType, RiskType, RiskSeverity
+    BulkRiskAssessment, RiskEntityType, RiskType, RiskSeverity
 };
-use defi_risk_monitor::services::RiskAssessmentService;
-use defi_risk_monitor::error::AppError;
+use defi_risk_monitor::services::risk_assessment_service::RiskAssessmentService;
+
 use sqlx::PgPool;
 use uuid::Uuid;
 use bigdecimal::BigDecimal;

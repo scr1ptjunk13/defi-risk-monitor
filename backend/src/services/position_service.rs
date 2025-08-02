@@ -5,7 +5,6 @@ use sqlx::{PgPool, Row};
 use tracing::{info, warn};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use bigdecimal::BigDecimal;
 
 /// Service for managing positions with entry price tracking
 pub struct PositionService {
