@@ -10,6 +10,7 @@ use tokio::time;
 use tracing::{info, error};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct MonitoringStats {
@@ -231,18 +232,76 @@ impl MonitoringService {
     }
 
     async fn fetch_risk_config(&self, user_address: &str) -> Result<RiskConfig, AppError> {
-        let risk_config = sqlx::query_as::<_, RiskConfig>(
-            "SELECT * FROM risk_configs WHERE user_address = $1"
+        // First, get the user_id from the user_addresses table
+        let user_result = sqlx::query!(
+            r#"
+            SELECT u.id as user_id
+            FROM users u 
+            JOIN user_addresses ua ON u.id = ua.user_id 
+            WHERE LOWER(ua.address) = LOWER($1)
+            LIMIT 1
+            "#,
+            user_address
         )
-        .bind(user_address)
         .fetch_optional(&self.db_pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        // Return default config if none exists
-        risk_config.ok_or_else(|| {
-            AppError::NotFound(format!("Risk config not found for user {}", user_address))
-        })
+        let user_id = user_result
+            .ok_or_else(|| AppError::NotFound(format!("User not found for address {}", user_address)))?
+            .user_id;
+
+        // Now get the risk preferences for this user_id
+        let risk_prefs = sqlx::query!(
+            r#"
+            SELECT 
+                max_position_size_usd,
+                max_protocol_allocation_percent,
+                max_single_pool_percent,
+                min_liquidity_threshold_usd,
+                max_risk_score,
+                max_slippage_percent,
+                stop_loss_threshold_percent
+            FROM user_risk_preferences 
+            WHERE user_id = $1
+            "#,
+            user_id
+        )
+        .fetch_optional(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Convert user_risk_preferences to RiskConfig format
+        if let Some(prefs) = risk_prefs {
+            let risk_config = RiskConfig {
+                id: uuid::Uuid::new_v4(),
+                user_address: user_address.to_string(),
+                max_position_size_usd: prefs.max_position_size_usd.unwrap_or_else(|| BigDecimal::from(100000)),
+                liquidation_threshold: BigDecimal::from_str("0.85").unwrap(),
+                price_impact_threshold: prefs.max_slippage_percent.unwrap_or_else(|| BigDecimal::from(5)).clone() / BigDecimal::from(100),
+                impermanent_loss_threshold: BigDecimal::from_str("0.10").unwrap(),
+                volatility_threshold: BigDecimal::from_str("0.20").unwrap(),
+                correlation_threshold: BigDecimal::from_str("0.80").unwrap(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            };
+            Ok(risk_config)
+        } else {
+            // Return default config if none exists
+            let default_config = RiskConfig {
+                id: uuid::Uuid::new_v4(),
+                user_address: user_address.to_string(),
+                max_position_size_usd: BigDecimal::from(100000),
+                liquidation_threshold: BigDecimal::from_str("0.85").unwrap(),
+                price_impact_threshold: BigDecimal::from_str("0.05").unwrap(),
+                impermanent_loss_threshold: BigDecimal::from_str("0.10").unwrap(),
+                volatility_threshold: BigDecimal::from_str("0.20").unwrap(),
+                correlation_threshold: BigDecimal::from_str("0.80").unwrap(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            };
+            Ok(default_config)
+        }
     }
 
     async fn store_risk_metrics(

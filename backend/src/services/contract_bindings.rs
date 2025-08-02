@@ -72,8 +72,24 @@ pub struct UniswapV3Pool {
 
 impl UniswapV3Pool {
     pub fn new(address: String, provider: Arc<RootProvider<Http<Client>>>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let address = Address::from_str(&address)
-            .map_err(|e| format!("Invalid pool address: {}", e))?;
+        // Validate address format first
+        if address.is_empty() {
+            return Err("Pool address cannot be empty".into());
+        }
+        
+        // Ensure address starts with 0x and has correct length
+        let normalized_address = if address.starts_with("0x") {
+            address.clone()
+        } else {
+            format!("0x{}", address)
+        };
+        
+        if normalized_address.len() != 42 {
+            return Err(format!("Invalid pool address length: expected 42 characters, got {}", normalized_address.len()).into());
+        }
+        
+        let address = Address::from_str(&normalized_address)
+            .map_err(|e| format!("Invalid pool address format '{}': {}", normalized_address, e))?;
         
         let contract = IUniswapV3Pool::new(address, provider);
         
@@ -84,12 +100,29 @@ impl UniswapV3Pool {
     }
 
     pub async fn slot0(&self) -> Result<(U256, i32, u16, u16, u16, u8, bool), Box<dyn std::error::Error + Send + Sync>> {
+        // Add detailed error context for debugging
         let result = self.contract.slot0().call().await
-            .map_err(|e| format!("slot0 call failed: {}", e))?;
+            .map_err(|e| {
+                format!("slot0 call failed for pool address {}: {}. This could be due to: 1) Invalid pool address, 2) Network connectivity issues, 3) Pool contract not deployed, 4) ABI mismatch", 
+                    self.address, e)
+            })?;
         
-        // Convert Alloy primitive types to standard Rust types
+        // Convert Alloy types properly with comprehensive error handling
         let sqrt_price_x96 = U256::from(result.sqrtPriceX96);
-        let tick: i32 = result.tick.try_into().map_err(|_| "Tick conversion failed")?;
+        
+        // Convert Alloy Signed type to i32 properly
+        // The tick is an int24 in Solidity (-8388608 to 8388607), which fits in i32
+        let tick: i32 = result.tick.try_into()
+            .map_err(|e| {
+                format!("Failed to convert tick to i32 for pool {}: {}. Tick value may be out of range for int24", 
+                    self.address, e)
+            })?;
+        
+        // Validate that the tick is within reasonable bounds for Uniswap V3
+        if tick < -887272 || tick > 887272 {
+            return Err(format!("Tick value {} is outside valid Uniswap V3 range [-887272, 887272] for pool {}", 
+                tick, self.address).into());
+        }
         
         Ok((
             sqrt_price_x96,
