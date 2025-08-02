@@ -106,12 +106,17 @@ async fn start_web_server(
     // Start WebSocket heartbeat task
     websocket_service.start_heartbeat_task();
     
+    // Create JWT service
+    let jwt_config = defi_risk_monitor::auth::jwt::JwtConfig::default();
+    let jwt_service = std::sync::Arc::new(defi_risk_monitor::auth::jwt::JwtService::new(jwt_config));
+    
     // Create application state
     let app_state = AppState {
         db_pool: db_pool.clone(),
         settings: settings.clone(),
         blockchain_service,
         websocket_service,
+        jwt_service,
     };
     
     use defi_risk_monitor::handlers::{

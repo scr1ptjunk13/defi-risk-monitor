@@ -6,6 +6,7 @@ pub mod database;
 pub mod utils;
 pub mod error;
 pub mod security;
+pub mod auth;
 pub mod comprehensive_test_demo;
 
 
@@ -18,4 +19,5 @@ pub struct AppState {
     pub settings: config::Settings,
     pub blockchain_service: std::sync::Arc<services::BlockchainService>,
     pub websocket_service: std::sync::Arc<services::websocket_service::WebSocketService>,
+    pub jwt_service: std::sync::Arc<auth::jwt::JwtService>,
 }

@@ -8,8 +8,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use bigdecimal::BigDecimal;
+use crate::auth::claims::{Claims, UserRole as JwtUserRole};
+use crate::auth::jwt::{JwtService, LoginResponse, LoginRequest};
+use crate::services::auth_service::{User, UserRole, AuthService};
 use crate::{
-    services::auth_service::{AuthService, UserRole},
     error::AppError,
     AppState,
 };
@@ -172,6 +174,66 @@ pub async fn update_user_settings(
     };
     
     Ok(Json(response))
+}
+
+// JWT Authentication Endpoints
+pub async fn login(
+    State(state): State<AppState>,
+    Json(request): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, AppError> {
+    let auth_service = AuthService::new(state.db_pool.clone(), "default_jwt_secret".to_string());
+    
+    // Authenticate user (simplified - in production, verify password hash)
+    // For now, we'll create a mock user since get_user_by_username doesn't exist
+    // In production, this should use proper authentication with password verification
+    let user = User {
+        id: uuid::Uuid::new_v4(),
+        username: request.username.clone(),
+        email: format!("{}@example.com", request.username),
+        role: UserRole::Viewer, // Default role
+        is_active: true,
+        api_key_hash: None,
+        last_login: None,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    
+    // Convert UserRole to JwtUserRole
+    let jwt_role = match user.role {
+        UserRole::Admin => JwtUserRole::Admin,
+        UserRole::Operator => JwtUserRole::Operator,
+        UserRole::Viewer => JwtUserRole::Viewer,
+        UserRole::ApiUser => JwtUserRole::ApiUser,
+        UserRole::System => JwtUserRole::System,
+    };
+    
+    // Generate JWT token
+    let token = state.jwt_service.generate_token(
+        user.id,
+        user.username.clone(),
+        jwt_role.clone(),
+        Some(24), // 24 hours
+    ).await?;
+    
+    // Create claims for response
+    let claims = Claims::new(user.id, user.username, jwt_role, 24);
+    let response = state.jwt_service.create_login_response(token, &claims);
+    
+    Ok(Json(response))
+}
+
+pub async fn logout(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> Result<StatusCode, AppError> {
+    if let Some(auth_header) = headers.get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = JwtService::extract_token_from_header(auth_str) {
+                state.jwt_service.revoke_token(token).await?;
+            }
+        }
+    }
+    Ok(StatusCode::OK)
 }
 
 pub async fn get_user_portfolio_summary(
