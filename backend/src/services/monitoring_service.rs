@@ -48,6 +48,11 @@ impl MonitoringService {
         })
     }
 
+    /// Set the WebSocket service for real-time updates
+    pub fn set_websocket_service(&mut self, websocket_service: Arc<WebSocketService>) {
+        self.websocket_service = Some(websocket_service);
+    }
+
     pub async fn start_monitoring(&self) -> Result<(), AppError> {
         info!("Starting risk monitoring service");
         
@@ -132,19 +137,43 @@ impl MonitoringService {
             None, // No user risk params in monitoring context
         ).await?;
 
-        // Store risk metrics
+        // Store risk metrics in database
         self.store_risk_metrics(position.id, &risk_metrics).await?;
 
-        // Check for risk threshold violations
-        let violations = self.risk_calculator.check_risk_thresholds(&risk_metrics, &risk_config);
+        // Send real-time risk update via WebSocket
+        if let Some(ref websocket_service) = self.websocket_service {
+            if let Err(e) = websocket_service.send_risk_update(position.id, risk_metrics.clone()).await {
+                error!("Failed to send WebSocket risk update for position {}: {}", position.id, e);
+            }
+        }
 
-        // Generate alerts for violations
-        for violation in violations {
+        // Calculate and send position value update
+        let current_value_usd = self.calculate_position_value(&position, &pool_state).await?;
+        // Calculate P&L based on entry prices if available, otherwise use current value
+        let initial_value = self.calculate_initial_position_value(&position).await.unwrap_or_else(|_| current_value_usd.clone());
+        let pnl_usd = current_value_usd.clone() - &initial_value;
+        let impermanent_loss_pct = risk_metrics.impermanent_loss.clone();
+        
+        if let Some(ref websocket_service) = self.websocket_service {
+            if let Err(e) = websocket_service.send_position_update(
+                position.id,
+                current_value_usd,
+                pnl_usd,
+                impermanent_loss_pct,
+            ).await {
+                error!("Failed to send WebSocket position update for position {}: {}", position.id, e);
+            }
+        }
+
+        // Check for risk threshold violations
+        let risk_config = self.fetch_risk_config(&position.user_address).await?;
+        if let Some(violation) = self.check_risk_thresholds(&risk_metrics, &risk_config) {
+            // Create and store alert
             let alert = CreateAlert {
                 user_address: position.user_address.clone(),
                 position_id: Some(position.id),
                 threshold_id: None,
-                alert_type: "risk_threshold_violation".to_string(),
+                alert_type: "risk_threshold_exceeded".to_string(),
                 severity: self.determine_alert_severity(&risk_metrics),
                 title: "Risk Threshold Exceeded".to_string(),
                 message: violation,
@@ -157,9 +186,16 @@ impl MonitoringService {
             let alert = Alert::new(alert);
             self.store_alert(&alert).await?;
             
-            // Send alert notification
+            // Send alert notification via traditional service
             if let Err(e) = self.alert_service.send_alert(&alert).await {
                 error!("Failed to send alert: {}", e);
+            }
+            
+            // Send real-time alert via WebSocket
+            if let Some(ref websocket_service) = self.websocket_service {
+                if let Err(e) = websocket_service.send_alert(alert).await {
+                    error!("Failed to send WebSocket alert for position {}: {}", position.id, e);
+                }
             }
         }
 
@@ -376,6 +412,76 @@ impl MonitoringService {
             AlertSeverity::Medium
         } else {
             AlertSeverity::Low
+        }
+    }
+
+    /// Calculate current position value based on pool state
+    async fn calculate_position_value(
+        &self,
+        position: &Position,
+        pool_state: &PoolState,
+    ) -> Result<BigDecimal, AppError> {
+        // Simple calculation based on current token prices
+        // In a real implementation, this would be more sophisticated
+        let default_price = BigDecimal::from(0);
+        let token0_price = pool_state.token0_price_usd.as_ref().unwrap_or(&default_price);
+        let token1_price = pool_state.token1_price_usd.as_ref().unwrap_or(&default_price);
+        
+        let token0_value = &position.token0_amount * token0_price;
+        let token1_value = &position.token1_amount * token1_price;
+        Ok(token0_value + token1_value)
+    }
+
+    /// Calculate initial position value based on entry prices
+    async fn calculate_initial_position_value(
+        &self,
+        position: &Position,
+    ) -> Result<BigDecimal, AppError> {
+        // Use entry prices if available, otherwise return zero for P&L calculation
+        let default_price = BigDecimal::from(0);
+        let token0_entry_price = position.entry_token0_price_usd.as_ref().unwrap_or(&default_price);
+        let token1_entry_price = position.entry_token1_price_usd.as_ref().unwrap_or(&default_price);
+        
+        let token0_value = &position.token0_amount * token0_entry_price;
+        let token1_value = &position.token1_amount * token1_entry_price;
+        Ok(token0_value + token1_value)
+    }
+
+    /// Check if risk metrics exceed configured thresholds
+    fn check_risk_thresholds(
+        &self,
+        metrics: &crate::services::risk_calculator::RiskMetrics,
+        config: &RiskConfig,
+    ) -> Option<String> {
+        let mut violations = Vec::new();
+
+        if metrics.impermanent_loss > config.impermanent_loss_threshold {
+            violations.push(format!(
+                "Impermanent loss ({:.2}%) exceeds threshold ({:.2}%)",
+                metrics.impermanent_loss.clone() * BigDecimal::from(100),
+                config.impermanent_loss_threshold.clone() * BigDecimal::from(100)
+            ));
+        }
+
+        if metrics.volatility_score > config.volatility_threshold {
+            violations.push(format!(
+                "Volatility risk ({:.2}) exceeds threshold ({:.2})",
+                metrics.volatility_score,
+                config.volatility_threshold
+            ));
+        }
+
+        if metrics.overall_risk_score >= BigDecimal::from(8) {
+            violations.push(format!(
+                "Overall risk score ({:.2}) is critical",
+                metrics.overall_risk_score
+            ));
+        }
+
+        if violations.is_empty() {
+            None
+        } else {
+            Some(violations.join("; "))
         }
     }
 }

@@ -1,7 +1,7 @@
 use defi_risk_monitor::{
     config::Settings,
     database::connection::establish_connection,
-    services::{monitoring_service::MonitoringService, SystemHealthIntegration, websocket_service::WebSocketService},
+    services::{monitoring_service::MonitoringService, SystemHealthIntegration, websocket_service::WebSocketService, real_time_risk_service::RealTimeRiskService},
     utils::monitoring::{init_metrics, HealthChecker},
     handlers::{create_alert_routes, create_user_risk_config_routes, create_webhook_routes},
     AppState,
@@ -105,6 +105,26 @@ async fn start_web_server(
     
     // Start WebSocket heartbeat task
     websocket_service.start_heartbeat_task();
+    
+    // Initialize monitoring service with WebSocket integration
+    let mut monitoring_service = MonitoringService::new(db_pool.clone(), settings.clone())
+        .expect("Failed to initialize monitoring service");
+    monitoring_service.set_websocket_service(websocket_service.clone());
+    let monitoring_service = std::sync::Arc::new(monitoring_service);
+    
+    // Initialize real-time risk service
+    let real_time_risk_service = RealTimeRiskService::new(
+        monitoring_service.clone(),
+        websocket_service.clone(),
+    );
+    
+    // Start real-time risk monitoring in background
+    let real_time_service_clone = real_time_risk_service.clone();
+    tokio::spawn(async move {
+        if let Err(e) = real_time_service_clone.start().await {
+            eprintln!("Failed to start real-time risk service: {}", e);
+        }
+    });
     
     // Create JWT service
     let jwt_config = defi_risk_monitor::auth::jwt::JwtConfig::default();
