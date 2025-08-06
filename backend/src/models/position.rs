@@ -3,6 +3,8 @@ use sqlx::FromRow;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use bigdecimal::BigDecimal;
+use std::str::FromStr;
+use num_traits::Zero;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Position {
@@ -120,5 +122,107 @@ impl Position {
     /// Check if position has entry price data for accurate calculations
     pub fn has_entry_prices(&self) -> bool {
         self.entry_token0_price_usd.is_some() && self.entry_token1_price_usd.is_some()
+    }
+
+    /// Calculate PnL based on current vs entry prices
+    pub fn calculate_pnl_usd(
+        &self,
+        current_token0_price: &BigDecimal,
+        current_token1_price: &BigDecimal,
+    ) -> BigDecimal {
+        if let (Some(entry_token0_price), Some(entry_token1_price)) = 
+            (&self.entry_token0_price_usd, &self.entry_token1_price_usd) {
+            
+            // Current position value
+            let current_value = self.calculate_position_value_usd(
+                current_token0_price.clone(), 
+                current_token1_price.clone()
+            );
+            
+            // Entry position value
+            let entry_value = self.calculate_position_value_usd(
+                entry_token0_price.clone(), 
+                entry_token1_price.clone()
+            );
+            
+            current_value - entry_value
+        } else {
+            BigDecimal::from(0) // No entry prices available
+        }
+    }
+
+    /// Estimate fees earned based on liquidity and fee tier
+    /// This is a simplified calculation - in production would use actual fee data
+    pub fn estimate_fees_earned_usd(
+        &self,
+        days_active: i64,
+        daily_volume_usd: &BigDecimal,
+        pool_tvl_usd: &BigDecimal,
+    ) -> BigDecimal {
+        if pool_tvl_usd.is_zero() {
+            return BigDecimal::from(0);
+        }
+
+        // Calculate position's share of the pool
+        let position_value = &self.token0_amount + &self.token1_amount; // Simplified
+        let pool_share = position_value / pool_tvl_usd;
+        
+        // Calculate fee rate (fee_tier is in hundredths of a bip, e.g., 3000 = 0.3%)
+        let fee_rate = BigDecimal::from(self.fee_tier) / BigDecimal::from(1_000_000);
+        
+        // Estimate fees: pool_share * daily_volume * fee_rate * days_active
+        pool_share * daily_volume_usd * fee_rate * BigDecimal::from(days_active)
+    }
+
+    /// Determine if position is considered active
+    /// A position is active if it has significant liquidity and recent activity
+    pub fn is_position_active(&self) -> bool {
+        // Position is active if:
+        // 1. Has non-zero liquidity
+        // 2. Was created/updated recently (within 30 days) OR has significant value
+        let has_liquidity = !self.liquidity.is_zero();
+        let has_tokens = !self.token0_amount.is_zero() || !self.token1_amount.is_zero();
+        
+        if !has_liquidity && !has_tokens {
+            return false;
+        }
+
+        // Check if recently active (within 30 days)
+        if let Some(updated_at) = self.updated_at {
+            let thirty_days_ago = chrono::Utc::now() - chrono::Duration::days(30);
+            if updated_at > thirty_days_ago {
+                return true;
+            }
+        }
+
+        // If no recent activity, consider active if has significant value
+        let min_active_value = BigDecimal::from(100); // $100 minimum
+        let total_token_amount = &self.token0_amount + &self.token1_amount;
+        total_token_amount > min_active_value
+    }
+
+    /// Get position type based on protocol and characteristics
+    pub fn get_position_type(&self) -> String {
+        match self.protocol.to_lowercase().as_str() {
+            "uniswap_v3" | "uniswap" => "concentrated_liquidity".to_string(),
+            "uniswap_v2" | "sushiswap" => "liquidity_pool".to_string(),
+            "aave" | "compound" => "lending".to_string(),
+            "yearn" | "curve" => "yield_farming".to_string(),
+            _ => "liquidity".to_string(), // Default fallback
+        }
+    }
+
+    /// Calculate current price based on tick (for Uniswap V3)
+    pub fn calculate_current_price_from_tick(&self, current_tick: i32) -> BigDecimal {
+        // Uniswap V3 price calculation: price = 1.0001^tick
+        let base = BigDecimal::from_str("1.0001").unwrap_or_else(|_| BigDecimal::from(1));
+        
+        // For simplicity, approximate the calculation
+        // In production, would use proper tick-to-price conversion
+        if current_tick >= 0 {
+            base * BigDecimal::from(current_tick.abs())
+        } else {
+            BigDecimal::from(1) / (base * BigDecimal::from(current_tick.abs()))
+        }
     }
 }

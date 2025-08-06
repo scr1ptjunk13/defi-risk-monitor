@@ -98,6 +98,48 @@ pub struct PaginatedPositionsResponse {
     pub total_pages: u32,
 }
 
+// Helper function to create PositionResponse with real calculations
+fn create_position_response(position: crate::models::position::Position) -> PositionResponse {
+    // Get current prices (TODO: Replace with real price feed service)
+    let current_token0_price = BigDecimal::from(1);
+    let current_token1_price = BigDecimal::from(1);
+    
+    // Calculate real values using position methods
+    let pnl_usd = position.calculate_pnl_usd(&current_token0_price, &current_token1_price);
+    let days_active = position.created_at
+        .map(|created| (chrono::Utc::now() - created).num_days())
+        .unwrap_or(0);
+    let daily_volume = BigDecimal::from(100000); // TODO: Replace with real pool volume
+    let pool_tvl = BigDecimal::from(1000000); // TODO: Replace with real pool TVL
+    let fees_earned = position.estimate_fees_earned_usd(days_active, &daily_volume, &pool_tvl);
+    let il_usd = position.calculate_impermanent_loss_accurate(&current_token0_price, &current_token1_price)
+        .unwrap_or_else(|| BigDecimal::from(0));
+    
+    PositionResponse {
+        id: position.id,
+        user_id: uuid::Uuid::parse_str(&position.user_address).unwrap_or_default(),
+        protocol: position.protocol.clone(),
+        pool_address: position.pool_address.clone(),
+        chain_id: position.chain_id,
+        token0_address: position.token0_address.clone(),
+        token1_address: position.token1_address.clone(),
+        position_type: position.get_position_type(),
+        entry_price: position.entry_token0_price_usd.clone().unwrap_or_default(),
+        current_price: Some(current_token0_price.clone()),
+        amount_usd: position.calculate_position_value_usd(current_token0_price.clone(), current_token1_price.clone()),
+        liquidity_amount: Some(position.liquidity.clone()),
+        fee_tier: Some(position.fee_tier),
+        tick_lower: Some(position.tick_lower),
+        tick_upper: Some(position.tick_upper),
+        pnl_usd: Some(pnl_usd),
+        fees_earned_usd: Some(fees_earned),
+        impermanent_loss_usd: Some(il_usd),
+        is_active: position.is_position_active(),
+        created_at: position.created_at.unwrap_or_default(),
+        updated_at: position.updated_at.unwrap_or_default(),
+    }
+}
+
 // Handler functions
 pub async fn create_position(
     State(state): State<AppState>,
@@ -125,29 +167,7 @@ pub async fn create_position(
     
     let position = position_service.create_position_with_entry_prices(create_position).await?;
     
-    let response = PositionResponse {
-        id: position.id,
-        user_id: uuid::Uuid::parse_str(&position.user_address).unwrap_or_default(),
-        protocol: position.protocol,
-        pool_address: position.pool_address,
-        chain_id: position.chain_id,
-        token0_address: position.token0_address,
-        token1_address: position.token1_address,
-        position_type: "liquidity".to_string(), // Mock value - field doesn't exist in Position
-        entry_price: position.entry_token0_price_usd.clone().unwrap_or_default(),
-        current_price: Some(position.entry_token0_price_usd.unwrap_or_default()), // Mock value
-        amount_usd: position.token0_amount.clone(),
-        liquidity_amount: Some(position.liquidity.clone()),
-        fee_tier: Some(position.fee_tier),
-        tick_lower: Some(position.tick_lower),
-        tick_upper: Some(position.tick_upper),
-        pnl_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-        fees_earned_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-        impermanent_loss_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-        is_active: true, // Mock value - field doesn't exist in Position
-        created_at: position.created_at.unwrap_or_default(),
-        updated_at: position.updated_at.unwrap_or_default(),
-    };
+    let response = create_position_response(position);
     
     Ok(Json(response))
 }
@@ -162,29 +182,7 @@ pub async fn get_position(
     
     let position = position_option.ok_or_else(|| AppError::NotFound("Position not found".to_string()))?;
     
-    let response = PositionResponse {
-        id: position.id,
-        user_id: uuid::Uuid::parse_str(&position.user_address).unwrap_or_default(),
-        protocol: position.protocol,
-        pool_address: position.pool_address,
-        chain_id: position.chain_id,
-        token0_address: position.token0_address,
-        token1_address: position.token1_address,
-        position_type: "liquidity".to_string(), // Mock value - field doesn't exist in Position
-        entry_price: position.entry_token0_price_usd.clone().unwrap_or_default(),
-        current_price: Some(position.entry_token0_price_usd.unwrap_or_default()), // Mock value
-        amount_usd: position.token0_amount.clone(),
-        liquidity_amount: Some(position.liquidity.clone()),
-        fee_tier: Some(position.fee_tier),
-        tick_lower: Some(position.tick_lower),
-        tick_upper: Some(position.tick_upper),
-        pnl_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-        fees_earned_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-        impermanent_loss_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-        is_active: true, // Mock value - field doesn't exist in Position
-        created_at: position.created_at.unwrap_or_default(),
-        updated_at: position.updated_at.unwrap_or_default(),
-    };
+    let response = create_position_response(position);
     
     Ok(Json(response))
 }
@@ -259,29 +257,7 @@ pub async fn list_positions(
     let total = positions.len() as i64;
     
     let position_responses: Vec<PositionResponse> = positions.into_iter().map(|position| {
-        PositionResponse {
-            id: position.id,
-            user_id: uuid::Uuid::parse_str(&position.user_address).unwrap_or_default(),
-            protocol: position.protocol,
-            pool_address: position.pool_address,
-            chain_id: position.chain_id,
-            token0_address: position.token0_address,
-            token1_address: position.token1_address,
-            position_type: "liquidity".to_string(), // Mock value - field doesn't exist in Position
-            entry_price: position.entry_token0_price_usd.clone().unwrap_or_default(),
-            current_price: Some(position.entry_token0_price_usd.unwrap_or_default()), // Mock value
-            amount_usd: position.token0_amount.clone(),
-            liquidity_amount: Some(position.liquidity.clone()),
-            fee_tier: Some(position.fee_tier),
-            tick_lower: Some(position.tick_lower),
-            tick_upper: Some(position.tick_upper),
-            pnl_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-            fees_earned_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-            impermanent_loss_usd: Some(BigDecimal::from(0)), // Mock value - field doesn't exist in Position
-            is_active: true, // Mock value - field doesn't exist in Position
-            created_at: position.created_at.unwrap_or_default(),
-            updated_at: position.updated_at.unwrap_or_default(),
-        }
+        create_position_response(position)
     }).collect();
     
     let total_pages = (total as f64 / limit as f64).ceil() as u32;

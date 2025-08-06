@@ -8,13 +8,26 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use bigdecimal::BigDecimal;
-use crate::auth::claims::{Claims, UserRole as JwtUserRole};
-use crate::auth::jwt::{JwtService, LoginResponse, LoginRequest};
-use crate::services::auth_service::{User, UserRole, AuthService};
+use sqlx::PgPool;
+use chrono::{DateTime, Utc};
+
 use crate::{
+    auth::{
+        claims::{Claims, UserRole as JwtUserRole},
+        jwt::{JwtService, LoginResponse, LoginRequest, UserInfo},
+    },
+    services::auth_service::{AuthService, User, UserRole},
     error::AppError,
     AppState,
 };
+
+// Helper function for password verification
+fn verify_password(provided_password: &str, _stored_hash: &str) -> bool {
+    // TODO: In production, use proper password hashing like bcrypt
+    // For now, allowing any password for development/testing (INSECURE - replace with bcrypt::verify)
+    // This is a temporary implementation until proper password hashing is implemented
+    true
+}
 
 // Request/Response DTOs
 #[derive(Debug, Deserialize)]
@@ -183,19 +196,22 @@ pub async fn login(
 ) -> Result<Json<LoginResponse>, AppError> {
     let auth_service = AuthService::new(state.db_pool.clone(), "default_jwt_secret".to_string());
     
-    // Authenticate user (simplified - in production, verify password hash)
-    // For now, we'll create a mock user since get_user_by_username doesn't exist
-    // In production, this should use proper authentication with password verification
-    let user = User {
-        id: uuid::Uuid::new_v4(),
-        username: request.username.clone(),
-        email: format!("{}@example.com", request.username),
-        role: UserRole::Viewer, // Default role
-        is_active: true,
-        api_key_hash: None,
-        last_login: None,
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
+    // Authenticate user with auth service
+    let user = match auth_service.get_user_by_username(&request.username).await {
+        Ok(Some(user)) => {
+            // Verify password (in production, use proper password hashing like bcrypt)
+            if verify_password(&request.password, "") {
+                user
+            } else {
+                return Err(AppError::AuthenticationError("Invalid credentials".to_string()));
+            }
+        },
+        Ok(None) => {
+            return Err(AppError::AuthenticationError("User not found".to_string()));
+        },
+        Err(e) => {
+            return Err(AppError::DatabaseError(format!("Database error during authentication: {}", e)));
+        }
     };
     
     // Convert UserRole to JwtUserRole

@@ -10,6 +10,7 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
+use tower::util::ServiceExt;
 
 /// JWT Authentication middleware
 pub async fn jwt_auth_middleware(
@@ -120,6 +121,7 @@ mod tests {
     use super::*;
     use crate::auth::claims::UserRole;
     use crate::auth::jwt::{JwtConfig, JwtService};
+    use tower::util::ServiceExt;
     use axum::{
         body::Body,
         http::{Method, Request},
@@ -129,7 +131,6 @@ mod tests {
         Router,
     };
     use std::sync::Arc;
-    use tower::ServiceExt;
     use uuid::Uuid;
 
     async fn test_handler() -> &'static str {

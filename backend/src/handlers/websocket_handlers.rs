@@ -28,11 +28,14 @@ pub async fn position_risk_stream(
     info!("WebSocket connection request for position risk: {}", position_id);
 
     ws.on_upgrade(move |socket| async move {
-        let websocket_service = &state.websocket_service;
-        
-        // Handle the connection
-        if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
-            warn!("WebSocket connection error: {}", e);
+        if let Some(websocket_service) = &state.websocket_service {
+            // Handle the connection
+            if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
+                warn!("WebSocket connection error: {}", e);
+                return;
+            }
+        } else {
+            warn!("WebSocket service not available");
             return;
         }
 
@@ -53,11 +56,14 @@ pub async fn alerts_live_feed(
     info!("WebSocket connection request for alerts live feed");
 
     ws.on_upgrade(move |socket| async move {
-        let websocket_service = &state.websocket_service;
-        
-        // Handle the connection
-        if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
-            warn!("WebSocket connection error: {}", e);
+        if let Some(websocket_service) = &state.websocket_service {
+            // Handle the connection
+            if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
+                warn!("WebSocket connection error: {}", e);
+                return;
+            }
+        } else {
+            warn!("WebSocket service not available");
             return;
         }
 
@@ -76,11 +82,14 @@ pub async fn position_value_stream(
     info!("WebSocket connection request for position value: {}", position_id);
 
     ws.on_upgrade(move |socket| async move {
-        let websocket_service = &state.websocket_service;
-        
-        // Handle the connection
-        if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
-            warn!("WebSocket connection error: {}", e);
+        if let Some(websocket_service) = &state.websocket_service {
+            // Handle the connection
+            if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
+                warn!("WebSocket connection error: {}", e);
+                return;
+            }
+        } else {
+            warn!("WebSocket service not available");
             return;
         }
 
@@ -99,11 +108,14 @@ pub async fn market_data_stream(
     info!("WebSocket connection request for market data: {}", token_address);
 
     ws.on_upgrade(move |socket| async move {
-        let websocket_service = &state.websocket_service;
-        
-        // Handle the connection
-        if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
-            warn!("WebSocket connection error: {}", e);
+        if let Some(websocket_service) = &state.websocket_service {
+            // Handle the connection
+            if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
+                warn!("WebSocket connection error: {}", e);
+                return;
+            }
+        } else {
+            warn!("WebSocket service not available");
             return;
         }
 
@@ -121,11 +133,14 @@ pub async fn system_status_stream(
     info!("WebSocket connection request for system status");
 
     ws.on_upgrade(move |socket| async move {
-        let websocket_service = &state.websocket_service;
-        
-        // Handle the connection
-        if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
-            warn!("WebSocket connection error: {}", e);
+        if let Some(websocket_service) = &state.websocket_service {
+            // Handle the connection
+            if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
+                warn!("WebSocket connection error: {}", e);
+                return;
+            }
+        } else {
+            warn!("WebSocket service not available");
             return;
         }
 
@@ -143,11 +158,14 @@ pub async fn general_stream(
     info!("General WebSocket connection request");
 
     ws.on_upgrade(move |socket| async move {
-        let websocket_service = &state.websocket_service;
-        
-        // Handle the connection
-        if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
-            warn!("WebSocket connection error: {}", e);
+        if let Some(websocket_service) = &state.websocket_service {
+            // Handle the connection
+            if let Err(e) = websocket_service.handle_connection(socket, params.user_address.clone()).await {
+                warn!("WebSocket connection error: {}", e);
+                return;
+            }
+        } else {
+            warn!("WebSocket service not available");
             return;
         }
 

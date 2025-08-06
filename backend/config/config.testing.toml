@@ -1,0 +1,111 @@
+# Testing Environment Configuration
+# This file contains test-specific settings optimized for automated testing
+
+[database]
+url = "postgresql://postgres:password@localhost:5434/defi_risk_monitor_test"
+max_connections = 5
+min_connections = 1
+connection_timeout_seconds = 10
+idle_timeout_seconds = 60
+max_lifetime_seconds = 300
+enable_logging = false
+slow_query_threshold_ms = 100
+replica_urls = []
+enable_read_replicas = false
+
+[api]
+host = "127.0.0.1"
+port = 8081
+cors_origins = ["*"]
+request_timeout_seconds = 10
+max_request_size_mb = 8
+rate_limit_requests_per_minute = 100000
+enable_compression = false
+enable_metrics = false
+
+[blockchain]
+ethereum_rpc_url = "https://eth.llamarpc.com"
+polygon_rpc_url = "https://polygon.llamarpc.com"
+arbitrum_rpc_url = "https://arbitrum.llamarpc.com"
+optimism_rpc_url = "https://optimism.llamarpc.com"
+bsc_rpc_url = "https://bsc.llamarpc.com"
+avalanche_rpc_url = "https://avalanche.llamarpc.com"
+request_timeout_seconds = 5
+max_retries = 1
+retry_delay_ms = 100
+enable_caching = false
+cache_ttl_seconds = 10
+risk_check_interval_seconds = 10
+block_confirmation_count = 1
+
+[risk]
+max_position_size_usd = 100000.0
+liquidation_threshold = 0.85
+impermanent_loss_threshold = 0.1
+mev_risk_threshold = 0.05
+enable_real_time_monitoring = false
+risk_calculation_interval_seconds = 5
+enable_predictive_analytics = false
+confidence_threshold = 0.5
+
+[risk.protocol_risk_weights]
+uniswap_v3 = 1.0
+test_protocol = 2.0
+
+[alerts]
+enable_push_notifications = false
+alert_cooldown_minutes = 0
+severity_thresholds = { low = 0.2, medium = 0.5, high = 0.8, critical = 0.95 }
+
+[logging]
+level = "warn"
+format = "compact"
+output = "stdout"
+max_file_size_mb = 10
+max_files = 1
+enable_structured_logging = false
+enable_request_logging = false
+sensitive_fields = []
+
+[security]
+jwt_secret = "test-jwt-secret-32-characters-long"
+jwt_expiration_hours = 1
+enable_rate_limiting = false
+max_login_attempts = 100
+lockout_duration_minutes = 0
+enable_2fa = false
+password_min_length = 4
+session_timeout_minutes = 60
+enable_audit_logging = false
+trusted_proxies = ["127.0.0.1", "::1"]
+
+[monitoring]
+enable_prometheus = false
+prometheus_port = 9091
+enable_jaeger = false
+enable_health_checks = false
+health_check_interval_seconds = 300
+metrics_retention_days = 1
+enable_alerting = false
+
+[performance]
+worker_threads = 2
+max_blocking_threads = 4
+enable_connection_pooling = false
+cache_size_mb = 16
+enable_query_caching = false
+query_cache_ttl_seconds = 10
+enable_compression = false
+batch_size = 100
+enable_parallel_processing = false
+
+[features]
+enable_websockets = false
+enable_real_time_updates = false
+enable_advanced_analytics = false
+enable_mev_protection = false
+enable_cross_chain_monitoring = false
+enable_ai_predictions = false
+enable_automated_rebalancing = false
+enable_portfolio_optimization = false
+enable_experimental_features = true

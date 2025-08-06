@@ -1,0 +1,124 @@
+# Staging Environment Configuration
+# This file contains staging-specific settings that mirror production but with relaxed constraints
+
+[database]
+max_connections = 20
+min_connections = 5
+connection_timeout_seconds = 30
+idle_timeout_seconds = 600
+max_lifetime_seconds = 3600
+enable_logging = true
+slow_query_threshold_ms = 1000
+replica_urls = []
+enable_read_replicas = false
+
+[api]
+host = "0.0.0.0"
+port = 8080
+cors_origins = ["https://staging.defi-risk-monitor.com", "https://staging-app.defi-risk-monitor.com"]
+request_timeout_seconds = 30
+max_request_size_mb = 16
+rate_limit_requests_per_minute = 5000
+enable_compression = true
+enable_metrics = true
+
+[blockchain]
+ethereum_rpc_url = "https://eth.llamarpc.com"
+ethereum_ws_url = "wss://eth.llamarpc.com"
+polygon_rpc_url = "https://polygon.llamarpc.com"
+arbitrum_rpc_url = "https://arbitrum.llamarpc.com"
+optimism_rpc_url = "https://optimism.llamarpc.com"
+bsc_rpc_url = "https://bsc.llamarpc.com"
+avalanche_rpc_url = "https://avalanche.llamarpc.com"
+request_timeout_seconds = 30
+max_retries = 3
+retry_delay_ms = 1500
+enable_caching = true
+cache_ttl_seconds = 180
+risk_check_interval_seconds = 120
+block_confirmation_count = 6
+
+[risk]
+max_position_size_usd = 5000000.0
+liquidation_threshold = 0.85
+impermanent_loss_threshold = 0.04
+mev_risk_threshold = 0.018
+enable_real_time_monitoring = true
+risk_calculation_interval_seconds = 45
+enable_predictive_analytics = true
+confidence_threshold = 0.82
+
+[risk.protocol_risk_weights]
+uniswap_v3 = 1.0
+uniswap_v2 = 1.2
+sushiswap = 1.5
+curve = 1.1
+balancer = 1.3
+aave = 0.8
+compound = 0.9
+
+[alerts]
+slack_webhook_url = ""
+discord_webhook_url = ""
+telegram_bot_token = ""
+telegram_chat_id = ""
+webhook_endpoints = []
+enable_push_notifications = true
+alert_cooldown_minutes = 10
+severity_thresholds = { low = 0.08, medium = 0.25, high = 0.6, critical = 0.85 }
+
+[logging]
+level = "debug"
+format = "json"
+output = "both"
+file_path = "/var/log/defi-risk-monitor/staging.log"
+max_file_size_mb = 100
+max_files = 7
+enable_structured_logging = true
+enable_request_logging = true
+sensitive_fields = ["password", "jwt_secret", "api_key", "private_key"]
+
+[security]
+jwt_secret = "staging-jwt-secret-change-in-production-32-chars-minimum"
+jwt_expiration_hours = 48
+enable_rate_limiting = true
+max_login_attempts = 8
+lockout_duration_minutes = 10
+enable_2fa = false
+password_min_length = 10
+session_timeout_minutes = 720
+enable_audit_logging = true
+trusted_proxies = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+
+[monitoring]
+enable_prometheus = true
+prometheus_port = 9090
+enable_jaeger = true
+jaeger_endpoint = "http://jaeger:14268/api/traces"
+enable_health_checks = true
+health_check_interval_seconds = 30
+metrics_retention_days = 30
+enable_alerting = true
+alert_manager_url = "http://alertmanager:9093"
+
+[performance]
+worker_threads = 6
+max_blocking_threads = 24
+enable_connection_pooling = true
+cache_size_mb = 256
+enable_query_caching = true
+query_cache_ttl_seconds = 300
+enable_compression = true
+batch_size = 2000
+enable_parallel_processing = true
+
+[features]
+enable_websockets = true
+enable_real_time_updates = true
+enable_advanced_analytics = true
+enable_mev_protection = true
+enable_cross_chain_monitoring = true
+enable_ai_predictions = true
+enable_automated_rebalancing = false
+enable_portfolio_optimization = true
+enable_experimental_features = true

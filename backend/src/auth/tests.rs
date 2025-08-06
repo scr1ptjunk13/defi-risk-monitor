@@ -1,19 +1,21 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::claims::{Claims, UserRole};
+    use crate::auth::claims::{Claims, UserRole, TokenValidation};
     use crate::auth::jwt::{JwtService, JwtConfig};
     use crate::error::AppError;
+    use jsonwebtoken::Algorithm;
     use std::sync::Arc;
     use tokio;
     use uuid::Uuid;
 
     fn setup_jwt_service() -> JwtService {
         let config = JwtConfig {
-            secret: "test-secret-key-for-jwt-testing".to_string(),
+            secret: "test-secret-key".to_string(),
+            algorithm: Algorithm::HS256,
             expires_in_hours: 24,
-            issuer: "test-issuer".to_string(),
-            audience: "test-audience".to_string(),
+            issuer: "test".to_string(),
+            audience: "test".to_string(),
         };
         JwtService::new(config)
     }
@@ -48,15 +50,18 @@ mod tests {
         assert!(result.is_ok());
         
         let validation = result.unwrap();
-        assert!(validation.is_valid);
-        assert_eq!(validation.claims.user_id, user_id);
-        assert_eq!(validation.claims.role, role);
-        println!("Token validation successful for user: {}", validation.claims.user_id);
+        if let TokenValidation::Valid(claims) = validation {
+            assert_eq!(claims.user_id().unwrap(), user_id);
+            assert_eq!(claims.role, role);
+            println!("Token validation successful for user: {}", claims.user_id().unwrap());
+        } else {
+            panic!("Expected valid token validation");
+        }
     }
 
     #[tokio::test]
     async fn test_jwt_token_revocation() {
-        let jwt_service = setup_jwt_service().await;
+        let jwt_service = setup_jwt_service();
         let user_id = Uuid::new_v4();
         let username = "test_user".to_string();
         let role = UserRole::Operator;
@@ -70,21 +75,20 @@ mod tests {
         // Revoke token
         jwt_service.revoke_token(&token).await.unwrap();
         
-        // Validate token again (should fail)
+        // Validate token again (should return Revoked)
         let result = jwt_service.validate_token(&token).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
         
-        if let Err(AppError::AuthenticationError(msg)) = result {
-            assert!(msg.contains("revoked"));
-            println!("Token revocation test passed: {}", msg);
+        if let Ok(TokenValidation::Revoked) = result {
+            println!("Token revocation test passed");
         } else {
-            panic!("Expected AuthenticationError for revoked token");
+            panic!("Expected TokenValidation::Revoked for revoked token");
         }
     }
 
     #[tokio::test]
     async fn test_jwt_token_expiration() {
-        let jwt_service = setup_jwt_service().await;
+        let jwt_service = setup_jwt_service();
         let user_id = Uuid::new_v4();
         let username = "test_user".to_string();
         let role = UserRole::Viewer;
@@ -95,31 +99,30 @@ mod tests {
         // Wait for token to expire
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         
-        // Validate expired token (should fail)
+        // Validate expired token (should return Expired)
         let result = jwt_service.validate_token(&token).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
         
-        if let Err(AppError::AuthenticationError(msg)) = result {
-            assert!(msg.contains("expired") || msg.contains("Expired"));
-            println!("Token expiration test passed: {}", msg);
+        if let Ok(TokenValidation::Expired) = result {
+            println!("Token expiration test passed");
         } else {
-            panic!("Expected AuthenticationError for expired token");
+            panic!("Expected TokenValidation::Expired for expired token");
         }
     }
 
     #[tokio::test]
     async fn test_invalid_jwt_token() {
-        let jwt_service = setup_jwt_service().await;
+        let jwt_service = setup_jwt_service();
         
         // Test with invalid token
         let invalid_token = "invalid.jwt.token";
         let result = jwt_service.validate_token(invalid_token).await;
         
-        assert!(result.is_err());
-        if let Err(AppError::AuthenticationError(msg)) = result {
+        assert!(result.is_ok());
+        if let Ok(TokenValidation::Invalid(msg)) = result {
             println!("Invalid token test passed: {}", msg);
         } else {
-            panic!("Expected AuthenticationError for invalid token");
+            panic!("Expected TokenValidation::Invalid for invalid token");
         }
     }
 
@@ -132,11 +135,11 @@ mod tests {
 
         let claims = Claims::new(user_id, username.clone(), role.clone(), expires_in_hours);
         
-        assert_eq!(claims.user_id, user_id);
+        assert_eq!(claims.user_id().unwrap(), user_id);
         assert_eq!(claims.username, username);
         assert_eq!(claims.role, role);
-        assert_eq!(claims.issuer, "defi-risk-monitor");
-        assert_eq!(claims.audience, "defi-risk-monitor-api");
+        assert_eq!(claims.iss, "defi-risk-monitor");
+        assert_eq!(claims.aud, "defi-risk-monitor-api");
         assert!(!claims.jti.is_empty());
         
         // Check expiration is set correctly (approximately)
@@ -146,53 +149,58 @@ mod tests {
         println!("JWT claims creation test passed for user: {}", claims.username);
     }
 
-    #[tokio::test]
-    async fn test_user_role_permissions() {
+    #[test]
+    fn test_user_role_permissions() {
         // Test Admin permissions
         let admin_role = UserRole::Admin;
-        assert!(admin_role.has_permission(&crate::auth::claims::Permission::ReadPositions));
-        assert!(admin_role.has_permission(&crate::auth::claims::Permission::CreatePositions));
-        assert!(admin_role.has_permission(&crate::auth::claims::Permission::DeletePositions));
-        assert!(admin_role.has_permission(&crate::auth::claims::Permission::ManageUsers));
+        assert!(admin_role.is_admin());
+        assert!(admin_role.can_modify_positions());
+        assert!(admin_role.can_view_positions());
+        assert!(admin_role.can_manage_alerts());
+        assert!(admin_role.can_access_system_health());
+        
+        // Test Operator permissions
+        let operator_role = UserRole::Operator;
+        assert!(!operator_role.is_admin());
+        assert!(operator_role.can_modify_positions());
+        assert!(operator_role.can_view_positions());
+        assert!(operator_role.can_manage_alerts());
+        assert!(!operator_role.can_access_system_health());
         
         // Test Viewer permissions
         let viewer_role = UserRole::Viewer;
-        assert!(viewer_role.has_permission(&crate::auth::claims::Permission::ReadPositions));
-        assert!(viewer_role.has_permission(&crate::auth::claims::Permission::ReadAlerts));
-        assert!(!viewer_role.has_permission(&crate::auth::claims::Permission::CreatePositions));
-        assert!(!viewer_role.has_permission(&crate::auth::claims::Permission::ManageUsers));
+        assert!(!viewer_role.is_admin());
+        assert!(!viewer_role.can_modify_positions());
+        assert!(viewer_role.can_view_positions());
+        assert!(!viewer_role.can_manage_alerts());
+        assert!(!viewer_role.can_access_system_health());
         
         // Test ApiUser permissions
         let api_user_role = UserRole::ApiUser;
-        assert!(api_user_role.has_permission(&crate::auth::claims::Permission::ReadPositions));
-        assert!(api_user_role.has_permission(&crate::auth::claims::Permission::CreatePositions));
-        assert!(api_user_role.has_permission(&crate::auth::claims::Permission::UpdatePositions));
-        assert!(!api_user_role.has_permission(&crate::auth::claims::Permission::ManageUsers));
+        assert!(!api_user_role.is_admin());
+        assert!(!api_user_role.can_modify_positions());
+        assert!(api_user_role.can_view_positions());
+        assert!(!api_user_role.can_manage_alerts());
+        assert!(!api_user_role.can_access_system_health());
         
         println!("User role permissions test passed");
     }
 
     #[tokio::test]
     async fn test_jwt_service_login_response() {
-        let jwt_service = setup_jwt_service().await;
+        let jwt_service = setup_jwt_service();
         let user_id = Uuid::new_v4();
         let username = "test_user".to_string();
         let email = "test@example.com".to_string();
         let role = UserRole::Operator;
 
-        let login_response = jwt_service.create_login_response(
-            user_id, 
-            username.clone(), 
-            email.clone(), 
-            role.clone()
-        ).await.unwrap();
+        let token = jwt_service.generate_token(user_id, username.clone(), role.clone(), None).await.unwrap();
+        let claims = Claims::new(user_id, username.clone(), role.clone(), 24);
+        let login_response = jwt_service.create_login_response(token, &claims);
 
-        assert!(!login_response.access_token.is_empty());
-        assert_eq!(login_response.token_type, "Bearer");
-        assert_eq!(login_response.expires_in, 86400); // 24 hours in seconds
-        assert_eq!(login_response.user.id, user_id);
+        assert!(!login_response.token.is_empty());
+        assert_eq!(login_response.user.id, user_id.to_string());
         assert_eq!(login_response.user.username, username);
-        assert_eq!(login_response.user.email, email);
         assert_eq!(login_response.user.role, role);
 
         println!("JWT login response test passed for user: {}", username);
@@ -200,7 +208,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_token_operations() {
-        let jwt_service = Arc::new(setup_jwt_service().await);
+        let jwt_service = Arc::new(setup_jwt_service());
         let mut handles = vec![];
 
         // Test concurrent token generation and validation
@@ -215,14 +223,19 @@ mod tests {
                 let token = service.generate_token(user_id, username.clone(), role, Some(1)).await.unwrap();
                 
                 // Validate token
-                let claims = service.validate_token(&token).await.unwrap();
-                assert_eq!(claims.username, username);
+                let validation_result = service.validate_token(&token).await.unwrap();
+                if let TokenValidation::Valid(claims) = validation_result {
+                    assert_eq!(claims.username, username);
+                } else {
+                    panic!("Expected valid token validation");
+                }
                 
                 // Revoke token
                 service.revoke_token(&token).await.unwrap();
                 
-                // Validate revoked token (should fail)
-                assert!(service.validate_token(&token).await.is_err());
+                // Validate revoked token (should return Revoked)
+                let result = service.validate_token(&token).await;
+                assert!(matches!(result, Ok(TokenValidation::Revoked)));
                 
                 i
             });
@@ -240,24 +253,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_jwt_token_with_different_secrets() {
-        let jwt_service1 = JwtService::new("secret1".to_string()).await;
-        let jwt_service2 = JwtService::new("secret2".to_string()).await;
+        let config1 = JwtConfig {
+            secret: "secret1".to_string(),
+            algorithm: Algorithm::HS256,
+            expires_in_hours: 24,
+            issuer: "test".to_string(),
+            audience: "test".to_string(),
+        };
+        let config2 = JwtConfig {
+            secret: "secret2".to_string(),
+            algorithm: Algorithm::HS256,
+            expires_in_hours: 24,
+            issuer: "test".to_string(),
+            audience: "test".to_string(),
+        };
+        let service1 = JwtService::new(config1);
+        let service2 = JwtService::new(config2);
         
         let user_id = Uuid::new_v4();
         let username = "test_user".to_string();
         let role = UserRole::Admin;
 
         // Generate token with service1
-        let token = jwt_service1.generate_token(user_id, username, role, Some(1)).await.unwrap();
+        let token = service1.generate_token(user_id, username, role, Some(1)).await.unwrap();
         
-        // Try to validate with service2 (should fail)
-        let result = jwt_service2.validate_token(&token).await;
-        assert!(result.is_err());
+        // Try to validate with service2 (should return Invalid)
+        let result = service2.validate_token(&token).await;
+        assert!(result.is_ok());
         
-        if let Err(AppError::AuthenticationError(msg)) = result {
+        if let Ok(TokenValidation::Invalid(msg)) = result {
             println!("Different secrets test passed: {}", msg);
         } else {
-            panic!("Expected AuthenticationError for token with different secret");
+            panic!("Expected TokenValidation::Invalid for token with different secret");
         }
     }
 }

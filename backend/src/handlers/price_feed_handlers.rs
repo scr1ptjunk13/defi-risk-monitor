@@ -308,25 +308,36 @@ pub async fn refresh_price_cache(
 }
 
 pub async fn get_supported_tokens(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<Vec<String>>, AppError> {
-    let providers = vec![
-        PriceFeedProvider::coingecko(),
-        PriceFeedProvider::coinmarketcap(None),
-        PriceFeedProvider::cryptocompare(None),
-    ];
-    let _price_service = PriceFeedService::new(providers)?;
+    // Get unique token addresses from positions table
+    let supported_tokens = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT DISTINCT token_address FROM (
+            SELECT token0_address as token_address FROM positions WHERE token0_address IS NOT NULL
+            UNION
+            SELECT token1_address as token_address FROM positions WHERE token1_address IS NOT NULL
+        ) AS unique_tokens
+        ORDER BY token_address
+        "#
+    )
+    .fetch_all(&state.db_pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(format!("Failed to fetch supported tokens: {}", e)))?;
     
-    // This would return a list of supported token addresses
-    // For now, return common tokens
-    let supported_tokens = vec![
-        "0xA0b86a33E6441b8e7a2e2B7b5b7c6e5a5c5d5e5f".to_string(), // Example USDC
-        "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(), // WETH
-        "0x6B175474E89094C44Da98b954EedeAC495271d0F".to_string(), // DAI
-        "0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string(), // USDT
-    ];
+    // If no tokens found in database, return common mainnet tokens as fallback
+    let tokens = if supported_tokens.is_empty() {
+        vec![
+            "0xA0b86a33E6441b8e7a2e2B7b5b7c6e5a5c5d5e5f".to_string(), // USDC
+            "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(), // WETH
+            "0x6B175474E89094C44Da98b954EedeAC495271d0F".to_string(), // DAI
+            "0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string(), // USDT
+        ]
+    } else {
+        supported_tokens
+    };
     
-    Ok(Json(supported_tokens))
+    Ok(Json(tokens))
 }
 
 pub async fn get_price_sources(
