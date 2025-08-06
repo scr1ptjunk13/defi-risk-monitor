@@ -134,25 +134,12 @@ async fn start_web_server(
     // The production config system will be properly integrated later
     println!("Warning: Using simplified config initialization for development");
     
-    let production_config = match defi_risk_monitor::config::ProductionConfig::load() {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("Config loading failed: {}, using defaults", e);
-            // Skip complex config for now - focus on core functionality
-            return Ok(());
-        }
-    };
+    // Use default production config for now
+    let production_config = defi_risk_monitor::config::ProductionConfig::default();
     
-    // Skip config manager for now to avoid async complexity in main
+    // Create a simple config manager without complex initialization
     let config_manager = std::sync::Arc::new(tokio::sync::Mutex::new(
-        // Placeholder - will be properly implemented later
-        match defi_risk_monitor::config::ConfigManager::new().await {
-            Ok(manager) => manager,
-            Err(e) => {
-                eprintln!("Config manager creation failed: {}, skipping for now", e);
-                return Ok(());
-            }
-        }
+        defi_risk_monitor::config::ConfigManager::default()
     ));
     
     let health_checker = std::sync::Arc::new(defi_risk_monitor::utils::monitoring::HealthChecker::new("v1.0.0"));

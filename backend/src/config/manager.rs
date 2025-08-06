@@ -420,3 +420,17 @@ mod tests {
         assert_eq!(value, None);
     }
 }
+
+impl Default for ConfigManager {
+    fn default() -> Self {
+        let config = ProductionConfig::default();
+        let validator = ConfigValidator::default();
+        
+        Self {
+            config: Arc::new(RwLock::new(config)),
+            validator,
+            config_path: "config/config.development.toml".to_string(),
+            last_modified: None,
+        }
+    }
+}

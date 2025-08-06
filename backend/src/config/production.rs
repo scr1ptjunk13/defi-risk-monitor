@@ -574,3 +574,188 @@ impl ConfigWatcher {
         self.config.read().await.clone()
     }
 }
+
+impl Default for ProductionConfig {
+    fn default() -> Self {
+        Self {
+            environment: ConfigEnvironment::Development,
+            database: DatabaseConfig::default(),
+            api: ApiConfig::default(),
+            blockchain: BlockchainConfig::default(),
+            risk: RiskConfig::default(),
+            alerts: AlertConfig::default(),
+            logging: LoggingConfig::default(),
+            security: SecurityConfig::default(),
+            monitoring: MonitoringConfig::default(),
+            performance: PerformanceConfig::default(),
+            features: FeatureFlags::default(),
+        }
+    }
+}
+
+impl Default for DatabaseConfig {
+    fn default() -> Self {
+        Self {
+            url: "postgresql://postgres:password@localhost:5434/defi_risk_monitor".to_string(),
+            max_connections: 50,
+            min_connections: 10,
+            connection_timeout_seconds: 30,
+            idle_timeout_seconds: 600,
+            max_lifetime_seconds: 1800,
+            enable_logging: true,
+            slow_query_threshold_ms: 1000,
+            replica_urls: vec![],
+            enable_read_replicas: false,
+        }
+    }
+}
+
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            host: "0.0.0.0".to_string(),
+            port: 8080,
+            cors_origins: vec!["*".to_string()],
+            request_timeout_seconds: 30,
+            max_request_size_mb: 10,
+            rate_limit_requests_per_minute: 1000,
+            enable_compression: true,
+            enable_metrics: true,
+            tls: None,
+        }
+    }
+}
+
+impl Default for BlockchainConfig {
+    fn default() -> Self {
+        Self {
+            ethereum_rpc_url: "https://eth.llamarpc.com".to_string(),
+            ethereum_ws_url: None,
+            polygon_rpc_url: "https://polygon.llamarpc.com".to_string(),
+            arbitrum_rpc_url: "https://arbitrum.llamarpc.com".to_string(),
+            optimism_rpc_url: "https://optimism.llamarpc.com".to_string(),
+            bsc_rpc_url: "https://bsc.llamarpc.com".to_string(),
+            avalanche_rpc_url: "https://avalanche.llamarpc.com".to_string(),
+            request_timeout_seconds: 30,
+            max_retries: 3,
+            retry_delay_ms: 1000,
+            enable_caching: true,
+            cache_ttl_seconds: 300,
+            risk_check_interval_seconds: 60,
+            block_confirmation_count: 12,
+        }
+    }
+}
+
+impl Default for RiskConfig {
+    fn default() -> Self {
+        Self {
+            max_position_size_usd: 1000000.0,
+            liquidation_threshold: 0.85,
+            impermanent_loss_threshold: 0.05,
+            mev_risk_threshold: 0.7,
+            protocol_risk_weights: HashMap::new(),
+            enable_real_time_monitoring: true,
+            risk_calculation_interval_seconds: 60,
+            enable_predictive_analytics: true,
+            confidence_threshold: 0.8,
+        }
+    }
+}
+
+impl Default for AlertConfig {
+    fn default() -> Self {
+        Self {
+            slack_webhook_url: None,
+            discord_webhook_url: None,
+            telegram_bot_token: None,
+            telegram_chat_id: None,
+            email: None,
+            webhook_endpoints: vec![],
+            enable_push_notifications: false,
+            alert_cooldown_minutes: 15,
+            severity_thresholds: HashMap::new(),
+        }
+    }
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            level: "info".to_string(),
+            format: "json".to_string(),
+            output: "stdout".to_string(),
+            file_path: None,
+            max_file_size_mb: 100,
+            max_files: 10,
+            enable_structured_logging: true,
+            enable_request_logging: true,
+            sensitive_fields: vec!["password".to_string(), "secret".to_string(), "token".to_string()],
+        }
+    }
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            jwt_secret: "your-super-secret-jwt-key-change-in-production".to_string(),
+            jwt_expiration_hours: 24,
+            enable_rate_limiting: true,
+            max_login_attempts: 5,
+            lockout_duration_minutes: 15,
+            enable_2fa: false,
+            password_min_length: 8,
+            session_timeout_minutes: 60,
+            enable_audit_logging: true,
+            trusted_proxies: vec![],
+        }
+    }
+}
+
+impl Default for MonitoringConfig {
+    fn default() -> Self {
+        Self {
+            enable_prometheus: true,
+            prometheus_port: 9090,
+            enable_jaeger: false,
+            jaeger_endpoint: None,
+            enable_health_checks: true,
+            health_check_interval_seconds: 30,
+            metrics_retention_days: 30,
+            enable_alerting: false,
+            alert_manager_url: None,
+        }
+    }
+}
+
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            worker_threads: None,
+            max_blocking_threads: Some(512),
+            enable_connection_pooling: true,
+            cache_size_mb: 256,
+            enable_query_caching: true,
+            query_cache_ttl_seconds: 300,
+            enable_compression: true,
+            batch_size: 1000,
+            enable_parallel_processing: true,
+        }
+    }
+}
+
+impl Default for FeatureFlags {
+    fn default() -> Self {
+        Self {
+            enable_websockets: true,
+            enable_real_time_updates: true,
+            enable_advanced_analytics: true,
+            enable_mev_protection: true,
+            enable_cross_chain_monitoring: true,
+            enable_ai_predictions: false,
+            enable_automated_rebalancing: false,
+            enable_portfolio_optimization: true,
+            enable_experimental_features: false,
+        }
+    }
+}
