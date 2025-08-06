@@ -9,6 +9,7 @@ pub struct Settings {
     pub risk: RiskSettings,
     pub alerts: AlertSettings,
     pub logging: LoggingSettings,
+    pub ai_service: AIServiceSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +52,14 @@ pub struct LoggingSettings {
     pub level: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIServiceSettings {
+    pub url: String,
+    pub timeout_seconds: u64,
+    pub fallback_enabled: bool,
+    pub retry_attempts: u32,
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
@@ -60,6 +69,7 @@ impl Default for Settings {
             risk: RiskSettings::default(),
             alerts: AlertSettings::default(),
             logging: LoggingSettings::default(),
+            ai_service: AIServiceSettings::default(),
         }
     }
 }
@@ -122,6 +132,17 @@ impl Default for LoggingSettings {
     }
 }
 
+impl Default for AIServiceSettings {
+    fn default() -> Self {
+        AIServiceSettings {
+            url: "http://localhost:8001".to_string(),
+            timeout_seconds: 30,
+            fallback_enabled: true,
+            retry_attempts: 3,
+        }
+    }
+}
+
 impl Settings {
     pub fn new() -> Result<Self, config::ConfigError> {
         let _settings = config::Config::builder()
@@ -172,6 +193,21 @@ impl Settings {
             },
             logging: LoggingSettings {
                 level: env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
+            },
+            ai_service: AIServiceSettings {
+                url: env::var("AI_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8001".to_string()),
+                timeout_seconds: env::var("AI_SERVICE_TIMEOUT")
+                    .unwrap_or_else(|_| "30".to_string())
+                    .parse()
+                    .unwrap_or(30),
+                fallback_enabled: env::var("AI_SERVICE_FALLBACK_ENABLED")
+                    .unwrap_or_else(|_| "true".to_string())
+                    .parse()
+                    .unwrap_or(true),
+                retry_attempts: env::var("AI_SERVICE_RETRY_ATTEMPTS")
+                    .unwrap_or_else(|_| "3".to_string())
+                    .parse()
+                    .unwrap_or(3),
             },
         })
     }

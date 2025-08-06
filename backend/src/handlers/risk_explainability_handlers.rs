@@ -8,7 +8,7 @@ use tracing::info;
 
 use crate::models::risk_explanation::*;
 use crate::services::{
-    risk_explainability_service::RiskExplainabilityService,
+    AIRiskService,
     risk_calculator::RiskCalculator,
 };
 use crate::error::AppError;
@@ -126,21 +126,15 @@ pub async fn explain_position_risk(
         .await
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
-    // Create explainability service and generate explanation
-    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
+    // Create AI risk service and generate explanation
+    let ai_risk_service = AIRiskService::new(
+        state.settings.ai_service.url.clone(),
+        state.settings.ai_service.fallback_enabled,
+    );
     
-    let request = ExplainRiskRequest {
-        position_id,
-        user_address: params.user_address,
-        detail_level: params.detail_level.unwrap_or_else(|| "detailed".to_string()),
-        include_market_context: params.include_market_context.unwrap_or(true),
-        include_historical_analysis: params.include_historical_analysis.unwrap_or(true),
-        language: params.language,
-    };
-
     let start_time = std::time::Instant::now();
-    let explanation = explainability_service
-        .explain_risk(&position, &risk_metrics, &pool_state, &request)
+    let explanation = ai_risk_service
+        .explain_position_risk(&position, &pool_state, &risk_metrics)
         .await?;
     let processing_time = start_time.elapsed().as_millis() as u64;
 
@@ -225,19 +219,14 @@ pub async fn get_risk_summary(
         .await
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
-    // Generate explanation
-    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
-    let request = ExplainRiskRequest {
-        position_id,
-        user_address: params.user_address,
-        detail_level: "summary".to_string(),
-        include_market_context: false,
-        include_historical_analysis: false,
-        language: params.language,
-    };
+    // Generate explanation using AI risk service
+    let ai_risk_service = AIRiskService::new(
+        state.settings.ai_service.url.clone(),
+        state.settings.ai_service.fallback_enabled,
+    );
 
-    let explanation = explainability_service
-        .explain_risk(&position, &risk_metrics, &pool_state, &request)
+    let explanation = ai_risk_service
+        .explain_position_risk(&position, &pool_state, &risk_metrics)
         .await?;
 
     // Convert to simplified format
@@ -335,19 +324,14 @@ pub async fn get_risk_recommendations(
         .await
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
-    // Generate explanation
-    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
-    let request = ExplainRiskRequest {
-        position_id,
-        user_address: params.user_address,
-        detail_level: "detailed".to_string(),
-        include_market_context: true,
-        include_historical_analysis: false,
-        language: params.language,
-    };
+    // Generate explanation using AI risk service
+    let ai_risk_service = AIRiskService::new(
+        state.settings.ai_service.url.clone(),
+        state.settings.ai_service.fallback_enabled,
+    );
 
-    let explanation = explainability_service
-        .explain_risk(&position, &risk_metrics, &pool_state, &request)
+    let explanation = ai_risk_service
+        .explain_position_risk(&position, &pool_state, &risk_metrics)
         .await?;
 
     Ok(Json(explanation.recommendations))
@@ -411,19 +395,14 @@ pub async fn get_market_context(
         .await
         .map_err(|e| AppError::InternalError(format!("Failed to calculate risk: {}", e)))?;
 
-    // Generate market context
-    let mut explainability_service = RiskExplainabilityService::new((*state.blockchain_service).clone());
-    let request = ExplainRiskRequest {
-        position_id,
-        user_address: None,
-        detail_level: "summary".to_string(),
-        include_market_context: true,
-        include_historical_analysis: false,
-        language: None,
-    };
+    // Generate market context using AI risk service
+    let ai_risk_service = AIRiskService::new(
+        state.settings.ai_service.url.clone(),
+        state.settings.ai_service.fallback_enabled,
+    );
 
-    let explanation = explainability_service
-        .explain_risk(&position, &risk_metrics, &pool_state, &request)
+    let explanation = ai_risk_service
+        .explain_position_risk(&position, &pool_state, &risk_metrics)
         .await?;
 
     Ok(Json(explanation.market_context))
