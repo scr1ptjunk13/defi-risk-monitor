@@ -94,6 +94,7 @@ pub struct TokenInfo {
 }
 
 /// Real-time price feed service
+#[derive(Clone)]
 pub struct PriceFeedService {
     client: Client,
     providers: Vec<PriceFeedProvider>,

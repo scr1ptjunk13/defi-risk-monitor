@@ -2,6 +2,7 @@ use crate::models::{CreatePriceHistory, PriceHistory};
 use crate::error::AppError;
 use sqlx::PgPool;
 
+#[derive(Clone)]
 pub struct PriceStorageService {
     db_pool: PgPool,
 }
