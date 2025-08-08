@@ -484,7 +484,7 @@ impl RiskCalculator {
         Ok(BigDecimal::from(5)) // 0.5
     }
 
-    fn calculate_liquidity_score(&self, pool_state: &PoolState) -> Result<BigDecimal, AppError> {
+    pub fn calculate_liquidity_score(&self, pool_state: &PoolState) -> Result<BigDecimal, AppError> {
         let tvl_risk = self.calculate_tvl_risk(pool_state)?;
         let _slippage_risk = self.calculate_slippage_risk(pool_state)?;
         let _thin_pool_risk = self.calculate_thin_pool_risk(pool_state)?;
@@ -498,7 +498,7 @@ impl RiskCalculator {
     }
     
     /// Calculate TVL-based risk with dynamic thresholds
-    fn calculate_tvl_risk(&self, pool_state: &PoolState) -> Result<BigDecimal, AppError> {
+    pub fn calculate_tvl_risk(&self, pool_state: &PoolState) -> Result<BigDecimal, AppError> {
         let tvl = pool_state.tvl_usd.clone().unwrap_or(BigDecimal::from(0));
         
         // Dynamic risk scoring based on TVL ranges
@@ -520,7 +520,7 @@ impl RiskCalculator {
     }
     
     /// Calculate slippage risk for potential swaps
-    fn calculate_slippage_risk(&self, pool_state: &PoolState) -> Result<BigDecimal, AppError> {
+    pub fn calculate_slippage_risk(&self, pool_state: &PoolState) -> Result<BigDecimal, AppError> {
         let liquidity = &pool_state.liquidity;
         let _sqrt_price = &pool_state.sqrt_price_x96;
         

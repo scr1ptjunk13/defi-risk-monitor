@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePortfolio } from '../../hooks/usePortfolio';
+import { Position } from '../../services/api';
 import { Position as ApiPosition } from '../../services/api';
 
 interface PortfolioOverviewProps {
@@ -47,6 +48,40 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
     refreshPortfolio
   } = usePortfolio();
 
+  // CORRECTED portfolio risk calculation - should be between individual position risks!
+  const calculateAdvancedPortfolioRisk = (positions: Position[], totalValue: number): number => {
+    if (positions.length === 0) return 50;
+    
+    // 1. Base weighted average risk (this should be the PRIMARY factor)
+    const weightedRisk = positions.reduce((sum, pos) => {
+      const value = parseFloat(pos.amount_usd || '0');
+      const risk = pos.risk_score || 50;
+      return sum + (risk * value);
+    }, 0) / totalValue;
+    
+    // 2. Small adjustments for portfolio effects (NOT massive penalties!)
+    const uniqueProtocols = new Set(positions.map(p => p.protocol)).size;
+    const largestPositionWeight = Math.max(...positions.map(p => parseFloat(p.amount_usd || '0'))) / totalValue;
+    
+    // Minor concentration risk (only if >95% in one position)
+    const concentrationAdjustment = largestPositionWeight > 0.95 ? 3 : 0;
+    
+    // Minor diversification bonus (only small benefit)
+    const diversificationAdjustment = uniqueProtocols > 1 ? -2 : 0;
+    
+    // Single position penalty (only if literally 1 position)
+    const singlePositionPenalty = positions.length === 1 ? 5 : 0;
+    
+    // Final risk should be CLOSE to weighted average, with small adjustments
+    const finalRisk = weightedRisk 
+      + concentrationAdjustment 
+      + diversificationAdjustment 
+      + singlePositionPenalty;
+    
+    // Cap between 1 and 100
+    return Math.max(1, Math.min(100, Math.round(finalRisk)));
+  };
+
   // Fetch portfolio data when component mounts or user address changes
   useEffect(() => {
     if (userAddress && userAddress !== 'demo') {
@@ -61,14 +96,24 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
       const activePositions = positions.filter(p => parseFloat(p.amount_usd || '0') > 0).length;
       const uniqueProtocols = new Set(positions.map(p => p.protocol)).size;
       
+      // Calculate total portfolio value from positions
+      const totalValue = positions.reduce((sum, pos) => sum + parseFloat(pos.amount_usd || '0'), 0);
+      const totalPnL = positions.reduce((sum, pos) => sum + parseFloat(pos.pnl_usd || '0'), 0);
+      const pnlPercentage = totalValue > 0 ? (totalPnL / totalValue) * 100 : 0;
+      
+      // Calculate SOPHISTICATED portfolio risk score considering multiple risk factors
+      const portfolioRiskScore = positions.length > 0 
+        ? calculateAdvancedPortfolioRisk(positions, totalValue)
+        : 50;
+      
       setMetrics({
-        totalValue: portfolio.total_value_usd,
-        totalPnL: portfolio.total_pnl_usd,
-        pnlPercentage: portfolio.pnl_percentage,
+        totalValue,
+        totalPnL,
+        pnlPercentage,
         activePositions,
         protocols: uniqueProtocols,
-        riskScore: portfolio.risk_score,
-        riskTrend: portfolio.pnl_percentage > 0 ? 'up' : portfolio.pnl_percentage < 0 ? 'down' : 'stable'
+        riskScore: Math.round(portfolioRiskScore), // REAL calculated portfolio risk score!
+        riskTrend: pnlPercentage > 0 ? 'up' : pnlPercentage < 0 ? 'down' : 'stable'
       });
 
       // Convert API positions to display format
@@ -79,7 +124,7 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
         value: parseFloat(pos.amount_usd || '0'), // Convert string to number
         pnl: parseFloat(pos.pnl_usd || '0'), // Convert string to number
         pnlPercentage: 0, // Calculate from pnl/value if needed
-        riskScore: 50, // Default risk score
+        riskScore: pos.risk_score || 50, // Use REAL calculated risk score from backend!
         chain: 'Ethereum' // All positions are on Ethereum mainnet
       }));
       

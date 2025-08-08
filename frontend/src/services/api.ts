@@ -20,6 +20,7 @@ export interface Position {
   pnl_usd?: string;
   fees_earned_usd?: string;
   impermanent_loss_usd?: string;
+  risk_score?: number; // Real calculated risk score from backend
   is_active: boolean;
   created_at: string;
   updated_at: string;
