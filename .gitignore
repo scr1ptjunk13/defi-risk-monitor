@@ -71,14 +71,14 @@
 # ================================
 
 # Environment files (CRITICAL - NEVER COMMIT SECRETS!)
-# .env
-# .env.local
-# .env.development.local
-# .env.test.local
-# .env.production.local
-# /backend/.env
-# /frontend/.env.local
-# /contracts/.env
+ .env
+ .env.*
+ /backend/.env
+ /backend/.env.*
+ /frontend/.env
+ /frontend/.env.*
+ /contracts/.env
+ /contracts/.env.*
 
 # API keys and secrets
 *.key
@@ -240,6 +240,7 @@ Dockerfile.prod
 *.bak
 *.backup
 *.old
+ frontend_old_backup/
 
 # Generated ABI files (if auto-generated)
 # /backend/abi/*.json

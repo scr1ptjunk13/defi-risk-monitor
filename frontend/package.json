@@ -1,66 +1,28 @@
 {
-  "name": "defi-risk-monitor",
+  "name": "defi-risk-monitor-frontend",
   "version": "1.0.0",
-  "description": "Advanced DeFi Risk Monitoring Dashboard - Real-time position tracking, risk analytics, and MEV protection",
-  "keywords": [
-    "defi",
-    "risk-monitoring",
-    "portfolio-management",
-    "mev-protection",
-    "liquidity-analysis"
-  ],
-  "author": "DeFi Risk Monitor Team",
-  "license": "MIT",
-  "homepage": "https://github.com/defi-risk-monitor/frontend",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/defi-risk-monitor/frontend.git"
-  },
+  "description": "Ultra-minimalist DeFi Risk Monitor - Making DeFi accessible to everyone",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "clear": "rm -rf node_modules package-lock.json .next out"
+    "lint": "next lint"
   },
   "dependencies": {
-    "@ant-design/charts": "^2.6.1",
-    "@formspree/react": "^2.5.4",
-    "@next/font": "13.2.4",
-    "@rainbow-me/rainbowkit": "^2.1.7",
-    "@tanstack/react-query": "^5.59.0",
-    "@uniswap/sdk-core": "^4.2.1",
-    "@uniswap/v3-sdk": "^3.25.2",
-    "antd": "^5.26.6",
-    "ethers": "^5.7.2",
-    "next": "13.2.4",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-hot-toast": "^2.5.2",
-    "react-icons": "^5.5.0",
-    "viem": "^2.21.19",
-    "wagmi": "^2.12.17",
-    "web3modal": "^1.9.12"
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "next": "15.4.6"
   },
   "devDependencies": {
-    "@playwright/test": "^1.54.2",
-    "@tailwindcss/forms": "^0.5.9",
-    "@types/d3-dispatch": "^3.0.6",
-    "@types/d3-dsv": "^3.0.7",
-    "@types/d3-fetch": "^3.0.7",
-    "@types/d3-force": "^3.0.10",
-    "@types/d3-geo": "^3.1.0",
-    "@types/d3-hierarchy": "^3.1.7",
-    "@types/d3-quadtree": "^3.0.6",
-    "@types/d3-random": "^3.0.3",
-    "@types/geojson": "^7946.0.16",
-    "@types/node": "^24.0.10",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "autoprefixer": "^10.4.14",
-    "postcss": "^8.4.21",
-    "tailwindcss": "^3.3.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@tailwindcss/postcss": "^4",
+    "tailwindcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "15.4.6",
+    "@eslint/eslintrc": "^3"
   }
 }

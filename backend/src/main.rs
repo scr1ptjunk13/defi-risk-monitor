@@ -166,6 +166,7 @@ async fn start_web_server(
         create_system_health_routes,
         create_monitoring_routes,
         create_price_feed_routes,
+        create_demo_routes,
         portfolio_handlers::get_portfolio,
     };
     
@@ -218,6 +219,7 @@ async fn start_web_server(
         .nest("/api/v1", create_system_health_routes())
         .nest("/api/v1", create_monitoring_routes())
         .nest("/api/v1", create_price_feed_routes())
+        .nest("/api/v1", create_demo_routes())
         
         // Existing specialized endpoints
         .nest("/api/v1", create_alert_routes())

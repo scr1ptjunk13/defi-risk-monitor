@@ -20,6 +20,7 @@ pub mod portfolio_handlers_complete;
 pub mod system_health_handlers;
 pub mod monitoring_handlers;
 pub mod price_feed_handlers;
+pub mod demo_handlers;
 
 // Explicitly re-export only what's needed from each module
 pub use health::health_check;
@@ -71,3 +72,4 @@ pub use portfolio_handlers_complete::create_portfolio_routes;
 pub use system_health_handlers::create_system_health_routes;
 pub use monitoring_handlers::create_monitoring_routes;
 pub use price_feed_handlers::create_price_feed_routes;
+pub use demo_handlers::create_demo_routes;

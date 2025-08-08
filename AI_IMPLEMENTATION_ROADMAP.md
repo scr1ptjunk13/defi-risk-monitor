@@ -39,6 +39,25 @@
 └── Database: TimescaleDB for time-series data
 ```
 
+1. Connect to Live DEX WebSocket Endpoints
+Replace mock URLs with real Uniswap V3, SushiSwap, and Curve WebSocket endpoints
+Implement actual message parsing for live DEX data
+Add error handling and reconnection logic for production use
+2. Implement Batch Database Operations
+Complete the stubbed database writing functionality
+Add bulk insert/update operations for pool states and price histories
+Integrate with the existing PostgreSQL database schema
+// stop
+3. Integrate Real-Time Risk Assessment
+Connect pool updates to the AI risk service for live risk scoring
+Trigger risk assessments when significant pool changes are detected
+Implement alerting for high-risk conditions
+4. Historical Data Ingestion
+Add archive node integration for historical data backfill
+Implement data quality checks and validation
+Set up TimescaleDB migration for time-series data optimization
+
+
 **Implementation Tasks:**
 - [ ] **DEX WebSocket Integration:** Real-time pool state updates from Uniswap V3, SushiSwap, Curve
 - [ ] **Historical Data Ingestion:** 2+ years of price/volume/TVL data via archive nodes
