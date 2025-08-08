@@ -13,7 +13,6 @@ interface PortfolioMetrics {
   pnlPercentage: number;
   activePositions: number;
   protocols: number;
-  chains: number;
   riskScore: number;
   riskTrend: 'up' | 'down' | 'stable';
 }
@@ -46,9 +45,8 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
           totalValue: 2847392.50,
           totalPnL: 128492.30,
           pnlPercentage: 4.72,
-          activePositions: 23,
-          protocols: 8,
-          chains: 4,
+          activePositions: 5,
+          protocols: 5,
           riskScore: 78,
           riskTrend: 'up'
         });
@@ -66,7 +64,7 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
           },
           {
             id: '2',
-            protocol: 'Aave',
+            protocol: 'Aave V3',
             pair: 'WETH Supply',
             value: 324850.75,
             pnl: 18293.45,
@@ -86,23 +84,23 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
           },
           {
             id: '4',
-            protocol: 'PancakeSwap',
-            pair: 'BNB/BUSD',
+            protocol: 'Compound V3',
+            pair: 'USDC Supply',
             value: 187394.60,
-            pnl: -3847.20,
-            pnlPercentage: -2.01,
-            riskScore: 73,
-            chain: 'BSC'
+            pnl: 3847.20,
+            pnlPercentage: 2.09,
+            riskScore: 35,
+            chain: 'Ethereum'
           },
           {
             id: '5',
-            protocol: 'QuickSwap',
-            pair: 'MATIC/USDC',
+            protocol: 'Lido',
+            pair: 'stETH',
             value: 142850.45,
             pnl: 8394.75,
             pnlPercentage: 6.24,
-            riskScore: 69,
-            chain: 'Polygon'
+            riskScore: 28,
+            chain: 'Ethereum'
           }
         ]);
         
@@ -213,7 +211,7 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
             {metrics?.activePositions}
           </div>
           <div className="text-sm text-gray-400">
-            {metrics?.protocols} protocols, {metrics?.chains} chains
+            {metrics?.protocols} protocols on Ethereum
           </div>
         </div>
       </div>

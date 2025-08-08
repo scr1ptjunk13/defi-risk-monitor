@@ -72,6 +72,14 @@ num-traits = "0.2.19"
 # Math & Utilities
 rust_decimal = { version = "1.35", features = ["serde-float", "maths"] }
 bigdecimal = { version = "0.4", features = ["serde"] }
+ethers = "2.0.14"
+alloy-rpc-client = "1.0.24"
+alloy-provider = "0.3"
+alloy-transport = "1.0.24"
+alloy-json-rpc = "1.0.24"
+alloy-primitives = "0.8"
+alloy-sol-types = "0.8"
+async-trait = "0.1.88"
 
 [dev-dependencies]
 # Testing

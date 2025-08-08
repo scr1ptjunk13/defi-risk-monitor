@@ -1,14 +1,15 @@
 pub mod config;
 pub mod models;
 pub mod services;
+pub mod blockchain;
+pub mod adapters;
 pub mod handlers;
-pub mod database;
-pub mod utils;
+pub mod middleware;
+pub mod routes;
 pub mod error;
 pub mod security;
 pub mod auth;
 pub mod comprehensive_test_demo;
-
 
 pub use error::types::*;
 

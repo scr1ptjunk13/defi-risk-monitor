@@ -13,7 +13,6 @@ interface RiskMetrics {
   volatilityRisk: number;
   mevRisk: number;
   protocolRisk: number;
-  crossChainRisk: number;
   timestamp: number;
 }
 
@@ -69,7 +68,7 @@ const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, 
           volatilityRisk: Math.max(0, Math.min(100, (prev?.volatilityRisk || 72) + (Math.random() - 0.5) * 6)),
           mevRisk: Math.max(0, Math.min(100, (prev?.mevRisk || 82) + (Math.random() - 0.5) * 4)),
           protocolRisk: Math.max(0, Math.min(100, (prev?.protocolRisk || 45) + (Math.random() - 0.5) * 3)),
-          crossChainRisk: Math.max(0, Math.min(100, (prev?.crossChainRisk || 58) + (Math.random() - 0.5) * 7)),
+
           timestamp: now
         }));
 
@@ -110,7 +109,7 @@ const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, 
       volatilityRisk: 72,
       mevRisk: 82,
       protocolRisk: 45,
-      crossChainRisk: 58,
+
       timestamp: Date.now()
     });
 
@@ -220,7 +219,7 @@ const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, 
             { key: 'volatilityRisk', label: 'Volatility', value: riskMetrics?.volatilityRisk || 0 },
             { key: 'mevRisk', label: 'MEV', value: riskMetrics?.mevRisk || 0 },
             { key: 'protocolRisk', label: 'Protocol', value: riskMetrics?.protocolRisk || 0 },
-            { key: 'crossChainRisk', label: 'Cross-Chain', value: riskMetrics?.crossChainRisk || 0 }
+
           ].map((factor) => (
             <div key={factor.key} className="bg-gray-800/50 rounded-lg p-3">
               <div className="text-xs text-gray-400 mb-1">{factor.label}</div>
