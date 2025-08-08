@@ -1,6 +1,6 @@
 use std::time::Duration;
 use tokio::time::timeout;
-use tracing::{info, warn, error, debug};
+use tracing::info;
 use dotenvy::dotenv;
 
 use defi_risk_monitor::{

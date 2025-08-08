@@ -291,7 +291,8 @@ async fn test_services_integration(pool: &PgPool) -> Result<(), AppError> {
 }
 
 /// Helper function to demonstrate query plan analysis
-async fn demonstrate_explain_analyze(pool: &PgPool) -> Result<(), AppError> {
+#[allow(dead_code)]
+async fn demonstrate_explain_analyze(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     info!("🔍 Demonstrating EXPLAIN ANALYZE functionality");
     
     // This would normally be called internally by QueryPerformanceService

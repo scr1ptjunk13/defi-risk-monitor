@@ -2,13 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug, Level, Span};
+use tracing::{info, warn, error, debug, Level};
 use tracing_subscriber::{
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
     fmt,
     EnvFilter,
     Registry,
+    Layer,
 };
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
@@ -185,7 +184,8 @@ impl EnhancedLogger {
     }
 
     /// Create JSON formatting layer
-    fn create_json_layer(&self) -> Result<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
+    #[allow(dead_code)]
+    fn create_json_layer(&self) -> Result<Box<dyn Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
         match self.config.output {
             LogOutput::Stdout => {
                 Ok(Box::new(fmt::layer().json().with_writer(std::io::stdout)))
@@ -210,22 +210,26 @@ impl EnhancedLogger {
     }
 
     /// Create pretty formatting layer
-    fn create_pretty_layer(&self) -> Result<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
+    #[allow(dead_code)]
+    fn create_pretty_layer(&self) -> Result<Box<dyn Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
         Ok(Box::new(fmt::layer().pretty().with_writer(std::io::stdout)))
     }
 
     /// Create compact formatting layer
-    fn create_compact_layer(&self) -> Result<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
+    #[allow(dead_code)]
+    fn create_compact_layer(&self) -> Result<Box<dyn Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
         Ok(Box::new(fmt::layer().compact().with_writer(std::io::stdout)))
     }
 
     /// Create custom formatting layer
-    fn create_custom_layer(&self) -> Result<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
+    #[allow(dead_code)]
+    fn create_custom_layer(&self) -> Result<Box<dyn Layer<Registry> + Send + Sync>, Box<dyn std::error::Error>> {
         // For now, fallback to JSON
         self.create_json_layer()
     }
 
     /// Create metrics collection layer
+    #[allow(dead_code)]
     fn create_metrics_layer(&self) -> MetricsLayer {
         MetricsLayer::new(self.metrics.clone())
     }

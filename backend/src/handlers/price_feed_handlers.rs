@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use crate::{
-    services::price_feed::{PriceFeedService, PriceFeedProvider},
+    services::price_feed::PriceFeedService,
     error::AppError,
     AppState,
 };

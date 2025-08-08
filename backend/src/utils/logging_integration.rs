@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, debug};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -359,7 +359,7 @@ impl LoggingMonitoringIntegration {
         duration_ms: u64,
         success: bool,
         correlation_id: Option<String>,
-        additional_data: Option<HashMap<String, serde_json::Value>>,
+        _additional_data: Option<HashMap<String, serde_json::Value>>,
     ) {
         if !self.config.enable_performance_logging {
             return;
@@ -407,7 +407,7 @@ impl LoggingMonitoringIntegration {
         severity: &str,
         user_id: Option<String>,
         ip_address: Option<String>,
-        details: HashMap<String, serde_json::Value>,
+        _details: HashMap<String, serde_json::Value>,
         correlation_id: Option<String>,
     ) {
         if !self.config.enable_security_logging {
@@ -483,7 +483,7 @@ impl LoggingMonitoringIntegration {
         let mut output = String::new();
 
         // Export counters
-        for (name, counter) in &metrics.counters {
+        for (_name, counter) in &metrics.counters {
             output.push_str(&format!("# HELP {} Counter metric\n", counter.name));
             output.push_str(&format!("# TYPE {} counter\n", counter.name));
             
@@ -500,7 +500,7 @@ impl LoggingMonitoringIntegration {
         }
 
         // Export gauges
-        for (name, gauge) in &metrics.gauges {
+        for (_name, gauge) in &metrics.gauges {
             output.push_str(&format!("# HELP {} Gauge metric\n", gauge.name));
             output.push_str(&format!("# TYPE {} gauge\n", gauge.name));
             
@@ -517,7 +517,7 @@ impl LoggingMonitoringIntegration {
         }
 
         // Export histograms
-        for (name, histogram) in &metrics.histograms {
+        for (_name, histogram) in &metrics.histograms {
             output.push_str(&format!("# HELP {} Histogram metric\n", histogram.name));
             output.push_str(&format!("# TYPE {} histogram\n", histogram.name));
             

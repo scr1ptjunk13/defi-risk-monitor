@@ -158,7 +158,7 @@ impl AIRiskService {
     /// Fallback explanation when AI service is unavailable
     async fn generate_fallback_explanation(
         &self,
-        position: &Position,
+        _position: &Position,
         risk_metrics: &RiskMetrics,
         _pool_state: &PoolState,
     ) -> Result<AIRiskExplanation, AppError> {

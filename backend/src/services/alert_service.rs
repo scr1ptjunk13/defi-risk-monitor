@@ -3,7 +3,7 @@ use crate::config::Settings;
 use crate::error::AppError;
 use reqwest::Client;
 use serde_json::json;
-use tracing::{info, warn};
+use tracing::info;
 
 pub struct AlertService {
     client: Client,

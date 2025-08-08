@@ -50,12 +50,14 @@ impl PriceFeedProvider {
 
 /// CoinGecko API response structures
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct CoinGeckoTokenResponse {
     #[serde(flatten)]
     prices: HashMap<String, f64>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct CoinGeckoSimplePrice {
     usd: f64,
 }

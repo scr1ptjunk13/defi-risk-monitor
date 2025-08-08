@@ -71,7 +71,7 @@ pub struct ActionSummary {
 /// GET /api/v1/positions/{id}/explain-risk
 pub async fn explain_position_risk(
     Path(position_id): Path<Uuid>,
-    Query(params): Query<ExplainRiskQuery>,
+    Query(_params): Query<ExplainRiskQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<ExplainRiskApiResponse>, AppError> {
     info!("Explaining risk for position: {}", position_id);
@@ -164,7 +164,7 @@ pub async fn explain_position_risk(
 /// GET /api/v1/positions/{id}/risk-summary
 pub async fn get_risk_summary(
     Path(position_id): Path<Uuid>,
-    Query(params): Query<ExplainRiskQuery>,
+    Query(_params): Query<ExplainRiskQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<RiskFactorsSummaryResponse>, AppError> {
     info!("Getting risk summary for position: {}", position_id);
@@ -269,7 +269,7 @@ pub async fn get_risk_summary(
 /// GET /api/v1/positions/{id}/recommendations
 pub async fn get_risk_recommendations(
     Path(position_id): Path<Uuid>,
-    Query(params): Query<ExplainRiskQuery>,
+    Query(_params): Query<ExplainRiskQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<RiskRecommendation>>, AppError> {
     info!("Getting risk recommendations for position: {}", position_id);

@@ -1,8 +1,7 @@
 //! JWT Authentication Middleware for Axum
 
-use crate::auth::claims::{AuthContext, Claims, Permission, TokenValidation};
+use crate::auth::claims::{AuthContext, Permission, TokenValidation};
 use crate::auth::jwt::JwtService;
-use crate::error::AppError;
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
@@ -10,7 +9,6 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
-use tower::util::ServiceExt;
 
 /// JWT Authentication middleware
 pub async fn jwt_auth_middleware(
@@ -110,7 +108,7 @@ pub async fn optional_jwt_auth_middleware(
 }
 
 /// Extract auth context from request (for use in handlers)
-pub fn extract_auth_context(headers: &HeaderMap) -> Option<AuthContext> {
+pub fn extract_auth_context(_headers: &HeaderMap) -> Option<AuthContext> {
     // This would typically be called from within handlers
     // In practice, you'd get this from request extensions
     None
@@ -121,7 +119,6 @@ mod tests {
     use super::*;
     use crate::auth::claims::UserRole;
     use crate::auth::jwt::{JwtConfig, JwtService};
-    use tower::util::ServiceExt;
     use axum::{
         body::Body,
         http::{Method, Request},

@@ -8,21 +8,19 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use bigdecimal::BigDecimal;
-use sqlx::PgPool;
-use chrono::{DateTime, Utc};
 
 use crate::{
     auth::{
         claims::{Claims, UserRole as JwtUserRole},
-        jwt::{JwtService, LoginResponse, LoginRequest, UserInfo},
+        jwt::{JwtService, LoginResponse, LoginRequest},
     },
-    services::auth_service::{AuthService, User, UserRole},
+    services::auth_service::{AuthService, UserRole},
     error::AppError,
     AppState,
 };
 
 // Helper function for password verification
-fn verify_password(provided_password: &str, _stored_hash: &str) -> bool {
+fn verify_password(_provided_password: &str, _stored_hash: &str) -> bool {
     // TODO: In production, use proper password hashing like bcrypt
     // For now, allowing any password for development/testing (INSECURE - replace with bcrypt::verify)
     // This is a temporary implementation until proper password hashing is implemented

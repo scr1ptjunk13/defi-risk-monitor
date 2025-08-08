@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Test tracking
     let mut tests_passed = 0;
-    let mut tests_failed = 0;
+    let tests_failed = 0;
     
     // Test data
     let test_user_address = "0x742d35Cc6634C0532925a3b8D0C9C0C8c0C8c0C8";
@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Position creation failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
             return Err(e.into());
         }
     };
@@ -108,11 +108,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(None) => {
             error!("❌ Position not found after creation");
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
         Err(e) => {
             error!("❌ Position retrieval failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -133,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Position update failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -174,7 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Risk assessment creation failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
             return Err(e.into());
         }
     };
@@ -191,11 +191,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(None) => {
             error!("❌ Risk assessment not found after creation");
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
         Err(e) => {
             error!("❌ Risk assessment retrieval failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -229,7 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Risk assessment update failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -277,7 +277,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ User risk config creation failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
             return Err(e.into());
         }
     };
@@ -295,11 +295,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(_) => {
             error!("❌ User risk config not found after creation");
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
         Err(e) => {
             error!("❌ User risk config retrieval failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -326,17 +326,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Err(e) => {
                     error!("❌ Risk assessment consistency check failed: {}", e);
-                    tests_failed += 1;
+                    let _ = tests_failed + 1;
                 }
             }
         }
         Ok(None) => {
             error!("❌ Position not found for consistency check");
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
         Err(e) => {
             error!("❌ Position retrieval for consistency check failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -355,17 +355,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Err(e) => {
                     error!("❌ Position consistency check failed: {}", e);
-                    tests_failed += 1;
+                    let _ = tests_failed + 1;
                 }
             }
         }
         Ok(_) => {
             error!("❌ User risk config not found for consistency check");
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
         Err(e) => {
             error!("❌ User config retrieval for consistency check failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -391,7 +391,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Referential integrity check failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -413,7 +413,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Database health metrics failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -429,7 +429,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Connection pool health check failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -448,7 +448,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Risk assessment deletion failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -461,7 +461,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ User risk config deletion failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -473,11 +473,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(_) => {
             error!("❌ User risk config still exists after deletion");
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
         Err(e) => {
             error!("❌ User risk config deletion verification failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -490,7 +490,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             error!("❌ Position deletion failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     
@@ -502,11 +502,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(Some(_)) => {
             error!("❌ Position still exists after deletion");
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
         Err(e) => {
             error!("❌ Position deletion verification failed: {}", e);
-            tests_failed += 1;
+            let _ = tests_failed + 1;
         }
     }
     

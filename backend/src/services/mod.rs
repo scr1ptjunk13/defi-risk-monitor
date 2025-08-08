@@ -9,6 +9,8 @@ pub mod user_risk_config_service;
 pub mod price_validation;
 pub mod price_feed;
 pub mod graph_service;
+pub mod price_service;
+pub mod position_aggregator;
 pub mod audit_service;
 pub mod auth_service;
 pub mod price_storage;

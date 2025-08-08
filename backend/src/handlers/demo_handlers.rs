@@ -2,12 +2,10 @@ use crate::error::AppError;
 use crate::services::demo_data_service::DemoDataService;
 use crate::AppState;
 use axum::{
-    extract::{State, Path, Query},
-    http::StatusCode,
+    extract::{State, Path},
     response::Json,
 };
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct DemoPositionsResponse {
@@ -40,7 +38,7 @@ pub async fn get_demo_positions(
     let demo_service = DemoDataService::new((*state.blockchain_service).clone());
     
     // Get real positions from whale addresses or create realistic demo data
-    let mut positions = demo_service.get_demo_positions().await?;
+    let positions = demo_service.get_demo_positions().await?;
     
     // Get real-time prices for positions
     let _prices = demo_service.get_position_prices(&positions).await?;
@@ -237,7 +235,7 @@ fn calculate_position_risk_score(position: &crate::models::Position) -> f64 {
     let protocol_risk = 0.3; // Fixed protocol risk for Uniswap V3
     
     // Weighted average of different risk factors
-    (il_risk * 0.5 + liquidity_risk * 0.3 + protocol_risk * 0.2)
+    il_risk * 0.5 + liquidity_risk * 0.3 + protocol_risk * 0.2
 }
 
 /// Get positions for any wallet address (demo mode - returns whale data)
@@ -268,7 +266,7 @@ pub async fn get_wallet_positions(
 /// Get portfolio stats for any wallet address (demo mode)
 pub async fn get_wallet_stats(
     State(state): State<AppState>,
-    Path(wallet_address): Path<String>,
+    Path(_wallet_address): Path<String>,
 ) -> Result<Json<DemoStatsResponse>, AppError> {
     // For demo purposes, return whale portfolio stats for any address
     let demo_service = DemoDataService::new((*state.blockchain_service).clone());

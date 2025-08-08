@@ -6,12 +6,12 @@ use super::traits::{DeFiAdapter, Position, AdapterError};
 
 /// Curve protocol adapter
 pub struct CurveAdapter {
-    client: EthereumClient,
+    _client: EthereumClient,
 }
 
 impl CurveAdapter {
     pub fn new(client: EthereumClient) -> Self {
-        Self { client }
+        Self { _client: client }
     }
 }
 

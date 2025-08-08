@@ -1,6 +1,5 @@
 #!/usr/bin/env rust
 
-use std::env;
 use std::str::FromStr;
 use bigdecimal::BigDecimal;
 use chrono::Utc;
@@ -114,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start_time = std::time::Instant::now();
     
     let mut successful_calls = 0;
-    let mut failed_calls = 0;
+    let mut _failed_calls = 0;
     let test_iterations = 5;
     
     for i in 1..=test_iterations {
@@ -126,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("✅");
             }
             Err(_) => {
-                failed_calls += 1;
+                _failed_calls += 1;
                 println!("❌");
             }
         }

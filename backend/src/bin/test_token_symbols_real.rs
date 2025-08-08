@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     // Create test pool state
-    let pool_state = PoolState {
+    let _pool_state = PoolState {
         id: Uuid::new_v4(),
         pool_address: test_position.pool_address.clone(),
         chain_id: 1,
@@ -98,7 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     // Create test risk metrics
-    let risk_metrics = RiskMetrics {
+    let _risk_metrics = RiskMetrics {
         impermanent_loss: BigDecimal::from_str("12.5").unwrap(),
         price_impact: BigDecimal::from_str("3.2").unwrap(),
         volatility_score: BigDecimal::from_str("45.8").unwrap(),
@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let mut explainability_service = RiskExplainabilityService::new(blockchain_service); // Temporarily disabled
     
     // Create explain request
-    let request = ExplainRiskRequest {
+    let _request = ExplainRiskRequest {
         position_id: test_position.id,
         user_address: Some(test_position.user_address.clone()),
         detail_level: "detailed".to_string(),

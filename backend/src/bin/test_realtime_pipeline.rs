@@ -1,13 +1,11 @@
 use std::time::Duration;
-use tracing::info;
 use chrono::Utc;
 use bigdecimal::BigDecimal;
 use dotenvy::dotenv;
 
 use defi_risk_monitor::{
     services::{
-        DexWebSocketClient, DataIngestionService, DataIngestionConfig,
-        PriceFeedService, PriceStorageService
+        DexWebSocketClient, DataIngestionConfig
     },
     config::Settings,
     error::AppError,
@@ -27,7 +25,7 @@ async fn main() -> Result<(), AppError> {
     println!("==================================");
 
     // Load configuration
-    let settings = Settings::new().map_err(|e| AppError::ConfigError(e.to_string()))?;
+    let _settings = Settings::new().map_err(|e| AppError::ConfigError(e.to_string()))?;
     println!("✅ Configuration loaded");
 
     // Test 1: DEX WebSocket Client

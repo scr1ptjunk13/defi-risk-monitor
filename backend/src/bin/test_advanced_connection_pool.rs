@@ -131,7 +131,7 @@ async fn test_pool_configurations(database_url: &str) -> Result<(), AppError> {
     // Test both pools
     for (name, pool) in [("High-Perf", &high_perf_pool), ("Conservative", &conservative_pool)] {
         let stats = pool.get_pool_stats().await;
-        let health = pool.get_health_status().await;
+        let _health = pool.get_health_status().await;
         let cache_stats = pool.get_statement_cache_stats().await;
         
         info!("📊 {} Pool - Utilization: {:.2}%, Cache Size: {}/{}", 

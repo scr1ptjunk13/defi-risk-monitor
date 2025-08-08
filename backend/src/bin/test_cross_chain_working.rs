@@ -1,5 +1,5 @@
 use defi_risk_monitor::services::cross_chain_risk_service::CrossChainRiskService;
-use defi_risk_monitor::models::{PoolState, CrossChainRiskConfig};
+use defi_risk_monitor::models::PoolState;
 use sqlx::PgPool;
 use bigdecimal::BigDecimal;
 use std::str::FromStr;

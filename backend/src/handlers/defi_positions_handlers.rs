@@ -7,8 +7,13 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
+use alloy::primitives::Address;
 
 use crate::AppState;
+use crate::blockchain::EthereumClient;
+use crate::services::position_aggregator::{PositionAggregator, AggregatorError};
+use crate::adapters::{Position, PortfolioSummary};
 
 #[derive(Debug, Deserialize)]
 pub struct FetchPositionsQuery {
@@ -57,43 +62,123 @@ pub struct LivePosition {
 }
 
 pub async fn fetch_positions_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(query): Query<FetchPositionsQuery>,
 ) -> Result<Json<LivePositionsResponse<LivePositionsPage<LivePosition>>>, (StatusCode, Json<LivePositionsResponse<HashMap<&'static str, &'static str>>>)> {
-    // Basic validation and defaults
-    let address = query.address.unwrap_or_else(|| "vitalik.eth".to_string());
-    let _protocols: Vec<String> = query
-        .protocols
-        .unwrap_or_else(|| "uniswap_v3,aave_v3,compound_v3,curve,lido".to_string())
-        .split(',')
-        .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty())
-        .collect();
-    // Focus on Ethereum only (chain_id = 1)
-    let chain_id = 1; // Ethereum mainnet
+    let address_str = query.address.unwrap_or_else(|| "vitalik.eth".to_string());
+    
+    // Validate and parse address
+    let address = match EthereumClient::validate_address(&address_str) {
+        Ok(addr) => addr,
+        Err(_) => {
+            let error_response = LivePositionsResponse {
+                success: false,
+                data: HashMap::from([("error", "Invalid Ethereum address format")]),
+                warnings: None,
+            };
+            return Err((StatusCode::BAD_REQUEST, Json(error_response)));
+        }
+    };
+    
     let page = query.page.unwrap_or(1);
     let per_page = query.per_page.unwrap_or(50).min(100);
-    let _include_metrics = query.include_metrics.unwrap_or(false);
-
-    // TODO: Wire up Ethereum DeFi adapters (Uniswap V3, Aave V3, Compound V3, Curve, Lido)
-    // For now, return an empty but well-structured payload to scaffold the API
-    let warnings = vec![format!(
-        "Ethereum DeFi adapters not yet implemented. Returning empty result for address {} on Ethereum",
-        address
-    )];
-
-    let page_payload = LivePositionsPage {
-        items: Vec::new(),
-        page,
-        per_page,
-        total: 0,
+    
+    // TODO: Get RPC URL from state/config
+    let rpc_url = std::env::var("ETHEREUM_RPC_URL")
+        .unwrap_or_else(|_| "https://eth-mainnet.alchemyapi.io/v2/demo".to_string());
+    
+    // Create Ethereum client and position aggregator
+    let client = match EthereumClient::new(&rpc_url).await {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to create Ethereum client");
+            let error_response = LivePositionsResponse {
+                success: false,
+                data: HashMap::from([("error", "Failed to connect to Ethereum network")]),
+                warnings: None,
+            };
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(error_response)));
+        }
     };
-
-    Ok(Json(LivePositionsResponse {
-        success: true,
-        data: page_payload,
-        warnings: Some(warnings),
-    }))
+    
+    let aggregator = match PositionAggregator::new(client, None).await {
+        Ok(agg) => agg,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to create position aggregator");
+            let error_response = LivePositionsResponse {
+                success: false,
+                data: HashMap::from([("error", "Failed to initialize DeFi adapters")]),
+                warnings: None,
+            };
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(error_response)));
+        }
+    };
+    
+    // Fetch user portfolio
+    match aggregator.fetch_user_portfolio(address).await {
+        Ok(portfolio) => {
+            let live_positions: Vec<LivePosition> = portfolio.positions.into_iter()
+                .map(|pos| LivePosition {
+                    protocol: pos.protocol,
+                    chain_id: 1, // Ethereum
+                    pool_address: pos.id.clone(),
+                    position_id: Some(pos.id),
+                    token0: "TODO".to_string(), // TODO: Extract from metadata
+                    token1: "TODO".to_string(), // TODO: Extract from metadata
+                    amount_token0: "0".to_string(), // TODO: Calculate from position
+                    amount_token1: "0".to_string(), // TODO: Calculate from position
+                    value_usd: Some(pos.value_usd),
+                })
+                .collect();
+            
+            let total = live_positions.len() as u64;
+            let start_idx = ((page - 1) * per_page) as usize;
+            let end_idx = (start_idx + per_page as usize).min(live_positions.len());
+            let page_items = live_positions[start_idx..end_idx].to_vec();
+            
+            let page_payload = LivePositionsPage {
+                items: page_items,
+                page,
+                per_page,
+                total,
+            };
+            
+            Ok(Json(LivePositionsResponse {
+                success: true,
+                data: page_payload,
+                warnings: None,
+            }))
+        }
+        Err(AggregatorError::NoPositionsFound(_)) => {
+            // Return empty result for users with no positions
+            let page_payload = LivePositionsPage {
+                items: Vec::new(),
+                page,
+                per_page,
+                total: 0,
+            };
+            
+            Ok(Json(LivePositionsResponse {
+                success: true,
+                data: page_payload,
+                warnings: Some(vec![format!("No DeFi positions found for address {}", address_str)]),
+            }))
+        }
+        Err(e) => {
+            tracing::error!(
+                user_address = %address,
+                error = %e,
+                "Failed to fetch user portfolio"
+            );
+            
+            let error_response = LivePositionsResponse {
+                success: false,
+                data: HashMap::from([("error", "Failed to fetch DeFi positions")]),
+                warnings: None,
+            };
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(error_response)))
+        }
+    }
 }
 
 pub async fn positions_summary_handler(

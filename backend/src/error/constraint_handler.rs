@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use tracing::debug;
 use crate::error::{AppError, classification::{classify_error, ErrorCategory}};
 use serde::{Serialize, Deserialize};
@@ -402,18 +403,12 @@ impl ConstraintViolationHandler {
     }
 }
 
-/// Global constraint violation handler instance
-static mut CONSTRAINT_HANDLER: Option<ConstraintViolationHandler> = None;
-static INIT: std::sync::Once = std::sync::Once::new();
+/// Global constraint violation handler instance (thread-safe, no unsafe)
+static CONSTRAINT_HANDLER: OnceLock<ConstraintViolationHandler> = OnceLock::new();
 
 /// Get the global constraint violation handler instance
 pub fn get_constraint_handler() -> &'static ConstraintViolationHandler {
-    unsafe {
-        INIT.call_once(|| {
-            CONSTRAINT_HANDLER = Some(ConstraintViolationHandler::new());
-        });
-        CONSTRAINT_HANDLER.as_ref().unwrap()
-    }
+    CONSTRAINT_HANDLER.get_or_init(|| ConstraintViolationHandler::new())
 }
 
 /// Analyze constraint violation and return detailed information

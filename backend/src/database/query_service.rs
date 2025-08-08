@@ -14,6 +14,7 @@ pub struct DatabaseQueryService {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CachedQuery {
     result: String, // JSON serialized result
     timestamp: chrono::DateTime<chrono::Utc>,
@@ -95,7 +96,7 @@ impl DatabaseQueryService {
         &self,
         base_query: &str,
         count_query: &str,
-        params: &[&(dyn sqlx::Encode<'_, Postgres> + Send + Sync)],
+        _params: &[&(dyn sqlx::Encode<'_, Postgres> + Send + Sync)],
         pagination: PaginationParams,
     ) -> Result<PaginatedResult<sqlx::postgres::PgRow>, AppError> {
         let page = pagination.page.unwrap_or(1).max(1);
@@ -270,6 +271,7 @@ impl DatabaseQueryService {
 
     // Private helper methods
     
+    #[allow(dead_code)]
     async fn execute_with_monitoring(
         &self,
         query: sqlx::query::Query<'_, Postgres, sqlx::postgres::PgArguments>,
@@ -285,6 +287,7 @@ impl DatabaseQueryService {
         result.map_err(|e| AppError::DatabaseError(format!("Query execution failed: {}", e)))
     }
 
+    #[allow(dead_code)]
     fn generate_query_hash(&self, query: &str, params: &[&(dyn sqlx::Encode<'_, Postgres> + Send + Sync)]) -> String {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -293,36 +296,41 @@ impl DatabaseQueryService {
         format!("{:x}", hasher.finish())
     }
 
-    async fn get_from_cache(&self, cache_key: &str) -> Option<CachedQuery> {
+    #[allow(dead_code)]
+    async fn get_from_cache(&self, cache_key: &str) -> Option<String> {
         let cache = self.query_cache.read().await;
         if let Some(cached) = cache.get(cache_key) {
             let age = chrono::Utc::now().signed_duration_since(cached.timestamp);
             if age.num_seconds() < cached.ttl_seconds as i64 {
-                return Some(cached.clone());
+                return Some(cached.result.clone());
             }
         }
         None
     }
 
-    async fn store_in_cache(&self, cache_key: String, result: String, ttl_seconds: u64) {
+    #[allow(dead_code)]
+    async fn store_in_cache(&self, cache_key: &str, result: &str, ttl_seconds: u64) {
         let mut cache = self.query_cache.write().await;
-        cache.insert(cache_key, CachedQuery {
-            result,
+        cache.insert(cache_key.to_string(), CachedQuery {
+            result: result.to_string(),
             timestamp: chrono::Utc::now(),
             ttl_seconds,
         });
     }
 
+    #[allow(dead_code)]
     async fn record_cache_hit(&self) {
         let mut metrics = self.performance_metrics.write().await;
         metrics.cache_hits += 1;
     }
 
+    #[allow(dead_code)]
     async fn record_cache_miss(&self) {
         let mut metrics = self.performance_metrics.write().await;
         metrics.cache_misses += 1;
     }
 
+    #[allow(dead_code)]
     async fn record_query_performance(&self, query_hash: &str, duration: Duration, success: bool) {
         let mut metrics = self.performance_metrics.write().await;
         

@@ -2,7 +2,7 @@ use sqlx::{PgPool, Postgres};
 use crate::error::AppError;
 use crate::models::*;
 use crate::database::{
-    DatabaseSafetyService, DatabaseQueryService, DatabaseHealthMonitor,
+    DatabaseSafetyService, DatabaseQueryService,
     CriticalOperationContext, CriticalOperationType, CriticalOperationResult,
     SystemHealthStatus
 };
@@ -18,7 +18,6 @@ pub struct DatabaseOperationsService {
     pool: PgPool,
     safety_service: DatabaseSafetyService,
     query_service: DatabaseQueryService,
-    health_monitor: DatabaseHealthMonitor,
 }
 
 /// Configuration for database operations
@@ -50,7 +49,6 @@ impl DatabaseOperationsService {
         Self {
             safety_service: DatabaseSafetyService::new(pool.clone()),
             query_service: DatabaseQueryService::new(pool.clone()),
-            health_monitor: DatabaseHealthMonitor::new(pool.clone()),
             pool,
         }
     }
@@ -73,26 +71,26 @@ impl DatabaseOperationsService {
     ) -> Result<CriticalOperationResult<()>, AppError> {
         let financial_impact = self.calculate_position_value(position).await?;
         
-        let context = CriticalOperationContext::new_position_operation(
+        let _context = CriticalOperationContext::new_position_operation(
             CriticalOperationType::PositionCreate,
             user_address.to_string(),
             Some(position.id),
             Some(financial_impact),
         );
 
-        let pos_id = position.id.clone();
-        let user_id = position.user_address.clone();
-        let pool_address = position.pool_address.clone();
-        let token_0 = position.token0_address.clone();
-        let token_1 = position.token1_address.clone();
-        let fee_tier = position.fee_tier;
-        let tick_lower = position.tick_lower;
-        let tick_upper = position.tick_upper;
-        let liquidity = position.liquidity.to_string();
-        let amount_0 = position.token0_amount.to_string();
-        let amount_1 = position.token1_amount.to_string();
-        let created_at = position.created_at;
-        let updated_at = position.updated_at;
+        let _pos_id = position.id.clone();
+        let _user_id = position.user_address.clone();
+        let _pool_address = position.pool_address.clone();
+        let _token_0 = position.token0_address.clone();
+        let _token_1 = position.token1_address.clone();
+        let _fee_tier = position.fee_tier;
+        let _tick_lower = position.tick_lower;
+        let _tick_upper = position.tick_upper;
+        let _liquidity = position.liquidity.to_string();
+        let _amount_0 = position.token0_amount.to_string();
+        let _amount_1 = position.token1_amount.to_string();
+        let _created_at = position.created_at;
+        let _updated_at = position.updated_at;
 
         // Execute the database operation directly for now (simplified approach)
         sqlx::query!(
@@ -140,8 +138,8 @@ impl DatabaseOperationsService {
     pub async fn update_position_safe(
         &self,
         position_id: Uuid,
-        updates: &PositionUpdate,
-        user_address: &str,
+        _updates: &PositionUpdate,
+        _user_address: &str,
     ) -> Result<Position, AppError> {
         // Simplified direct database update without complex transaction handling
         let updated_position = sqlx::query_as::<_, Position>(
@@ -227,9 +225,9 @@ impl DatabaseOperationsService {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> Result<Vec<Position>, AppError> {
-        let cache_key = format!("user_positions_{}_{:?}_{:?}", user_address, limit, offset);
+        let _cache_key = format!("user_positions_{}_{:?}_{:?}", user_address, limit, offset);
         
-        let query = r#"
+        let _query = r#"
             SELECT p.*, ps.tvl_usd, ps.volume_24h_usd 
             FROM positions p
             LEFT JOIN pool_states ps ON p.pool_address = ps.pool_address 
@@ -296,15 +294,15 @@ impl DatabaseOperationsService {
         for<'a> &'a T: sqlx::Encode<'a, Postgres> + sqlx::Type<Postgres>,
     {
         let context = CriticalOperationContext::new_system_operation(operation_type);
-        let data_len = data.len();
+        let _data_len = data.len();
 
         let pool = self.pool.clone();
         self.safety_service.execute_critical_operation(context, move || {
             let data_clone = data.clone();
             let table_name = table_name.to_string();
-            let columns: Vec<String> = columns.iter().map(|s| s.to_string()).collect();
+            let _columns: Vec<String> = columns.iter().map(|s| s.to_string()).collect();
             
-            let pool_clone = pool.clone();
+            let _pool_clone = pool.clone();
             Box::pin(async move {
                 // For now, we'll implement a simplified bulk insert that works with PoolState
                 // This can be enhanced later for true generic bulk operations
@@ -313,7 +311,7 @@ impl DatabaseOperationsService {
                     // Handle pool_states specifically
                     let mut total_inserted = 0u64;
                     
-                    for item in &data_clone {
+                    for _item in &data_clone {
                         // Since we can't easily cast T to PoolState generically,
                         // we'll use a simplified approach that logs the operation
                         // In a real implementation, this would use proper SQL bulk insert
@@ -352,35 +350,7 @@ impl DatabaseOperationsService {
         Ok(value)
     }
 
-    async fn calculate_update_impact(&self, position_id: Uuid, updates: &PositionUpdate) -> Result<BigDecimal, AppError> {
-        // Get current position
-        let current_position = sqlx::query_as::<_, Position>(
-            "SELECT * FROM positions WHERE id = $1"
-        )
-        .bind(position_id)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| AppError::DatabaseError(format!("Failed to get position for impact calculation: {}", e)))?;
 
-        // Calculate impact based on changes
-        let mut impact = BigDecimal::from(0);
-        
-        if let Some(new_amount) = &updates.token0_amount {
-            let price = self.get_token_price(&current_position.token0_address, current_position.chain_id).await
-                .unwrap_or_default();
-            let change = new_amount - &current_position.token0_amount;
-            impact += change * price;
-        }
-
-        if let Some(new_amount) = &updates.token1_amount {
-            let price = self.get_token_price(&current_position.token1_address, current_position.chain_id).await
-                .unwrap_or_default();
-            let change = new_amount - &current_position.token1_amount;
-            impact += change * price;
-        }
-
-        Ok(impact.abs())
-    }
 
     async fn get_token_price(&self, token_address: &str, chain_id: i32) -> Result<BigDecimal, AppError> {
         let price: Option<BigDecimal> = sqlx::query_scalar(

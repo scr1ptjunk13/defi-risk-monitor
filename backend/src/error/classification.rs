@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use tracing::{warn, debug};
 use crate::error::AppError;
 
@@ -428,18 +429,12 @@ impl ErrorClassifier {
     }
 }
 
-/// Global error classifier instance
-static mut ERROR_CLASSIFIER: Option<ErrorClassifier> = None;
-static INIT: std::sync::Once = std::sync::Once::new();
+/// Global error classifier instance (thread-safe, no unsafe)
+static ERROR_CLASSIFIER: OnceLock<ErrorClassifier> = OnceLock::new();
 
 /// Get the global error classifier instance
 pub fn get_error_classifier() -> &'static ErrorClassifier {
-    unsafe {
-        INIT.call_once(|| {
-            ERROR_CLASSIFIER = Some(ErrorClassifier::new());
-        });
-        ERROR_CLASSIFIER.as_ref().unwrap()
-    }
+    ERROR_CLASSIFIER.get_or_init(|| ErrorClassifier::new())
 }
 
 /// Enhanced error classification function that replaces the basic retry logic

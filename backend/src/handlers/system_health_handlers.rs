@@ -347,7 +347,7 @@ pub async fn trigger_maintenance(
 }
 
 pub async fn get_health_alerts(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Query(_query): Query<GetMetricsQuery>,
 ) -> Result<Json<Vec<SystemAlert>>, AppError> {
     // This would fetch actual system alerts from the database

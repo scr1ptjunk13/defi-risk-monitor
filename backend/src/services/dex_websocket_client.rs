@@ -1,18 +1,16 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, RwLock, mpsc};
+use tokio::sync::{broadcast, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use bigdecimal::BigDecimal;
 use tracing::{info, warn, error, debug};
 use url::Url;
 
-use crate::models::PoolState;
 use crate::error::AppError;
 
 /// DEX-specific WebSocket endpoints and configurations
@@ -83,7 +81,7 @@ impl DexWebSocketClient {
             .unwrap_or_else(|_| "demo".to_string());
         let infura_api_key = std::env::var("INFURA_API_KEY")
             .unwrap_or_else(|_| "demo".to_string());
-        let thegraph_api_key = std::env::var("THE_GRAPH_API_KEY")
+        let _thegraph_api_key = std::env::var("THEGRAPH_API_KEY")
             .unwrap_or_else(|_| "demo".to_string());
         
         // Check if we're in production mode with real API keys

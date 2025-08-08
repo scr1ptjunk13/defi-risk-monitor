@@ -154,6 +154,7 @@ async fn test_serialization_failure_retry(pool: &PgPool) -> Result<(), Box<dyn s
 }
 
 /// Test 4: Timeout handling
+#[allow(dead_code)]
 async fn test_timeout_handling(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     info!("\n🔍 Test 4: Testing timeout handling...");
 
@@ -191,6 +192,7 @@ async fn test_timeout_handling(pool: &PgPool) -> Result<(), Box<dyn std::error::
 }
 
 /// Test 5: Bulk insert with deadlock retry
+#[allow(dead_code)]
 async fn test_bulk_insert_with_retry(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     info!("\n🔍 Test 5: Testing bulk insert with retry logic...");
 
@@ -236,6 +238,7 @@ async fn test_bulk_insert_with_retry(pool: &PgPool) -> Result<(), Box<dyn std::e
 }
 
 /// Test 6: Read-only transaction retry
+#[allow(dead_code)]
 async fn test_readonly_transaction_retry(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     info!("\n🔍 Test 6: Testing read-only transaction retry...");
 

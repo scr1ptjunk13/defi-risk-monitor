@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, debug};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -433,7 +433,7 @@ impl EnhancedMonitoringSystem {
             loop {
                 interval.tick().await;
                 
-                let mut alerts = alert_manager.write().await;
+                let alerts = alert_manager.write().await;
                 let tracker = performance_tracker.read().await;
                 
                 // Collect rules to check to avoid borrowing issues

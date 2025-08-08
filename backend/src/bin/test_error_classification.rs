@@ -193,7 +193,7 @@ async fn test_graceful_degradation() {
     // Simulate database errors
     for i in 1..=15 {
         let error = AppError::DatabaseError("connection timeout".to_string());
-        degradation_service.record_error(&error).await;
+        let _ = degradation_service.record_error(&error).await;
         
         if i % 5 == 0 {
             let level = degradation_service.get_current_level().await;
@@ -259,7 +259,7 @@ async fn test_integration_error_handling() {
         let classification = classifier.classify_error(&error);
         
         // Record error in degradation service
-        degradation_service.record_error(&error).await;
+        let _ = degradation_service.record_error(&error).await;
         
         // Get current system status
         let level = degradation_service.get_current_level().await;

@@ -6,12 +6,12 @@ use super::traits::{DeFiAdapter, Position, AdapterError};
 
 /// Compound V3 protocol adapter
 pub struct CompoundV3Adapter {
-    client: EthereumClient,
+    _client: EthereumClient,
 }
 
 impl CompoundV3Adapter {
     pub fn new(client: EthereumClient) -> Self {
-        Self { client }
+        Self { _client: client }
     }
 }
 

@@ -12,7 +12,6 @@ use chrono::{DateTime, Utc};
 use crate::{
     services::{
         monitoring_service::MonitoringService,
-        alert_service::AlertService,
         threshold_service::ThresholdService,
     },
     error::AppError,

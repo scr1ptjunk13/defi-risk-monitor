@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
 use thiserror::Error;
 use url::Url;
 use regex::Regex;
@@ -447,7 +447,8 @@ impl ConfigValidator {
                 });
             }
 
-            if email.smtp_port == 0 || email.smtp_port > 65535 {
+            // smtp_port is u16, so upper bound is implicitly enforced; only check non-zero
+            if email.smtp_port == 0 {
                 return Err(ValidationError::InvalidRange {
                     field: "alerts.email.smtp_port".to_string(),
                     min: 1.0,

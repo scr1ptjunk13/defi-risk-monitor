@@ -6,12 +6,12 @@ use super::traits::{DeFiAdapter, Position, AdapterError};
 
 /// Lido protocol adapter
 pub struct LidoAdapter {
-    client: EthereumClient,
+    _client: EthereumClient,
 }
 
 impl LidoAdapter {
     pub fn new(client: EthereumClient) -> Self {
-        Self { client }
+        Self { _client: client }
     }
 }
 

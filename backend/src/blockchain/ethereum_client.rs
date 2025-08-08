@@ -3,9 +3,8 @@ use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::http::{Client, Http},
 };
-use serde_json::Value;
 use std::str::FromStr;
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct EthereumClient {
@@ -23,6 +22,9 @@ pub enum EthereumError {
     
     #[error("Contract call failed: {0}")]
     ContractError(String),
+    
+    #[error("Max retries exceeded: {0}")]
+    MaxRetriesExceeded(u32),
     
     #[error("Network error: {0}")]
     NetworkError(String),
@@ -98,41 +100,44 @@ impl EthereumClient {
     }
     
     /// Make a contract call with retry logic
-    pub async fn call_contract_with_retry<T>(
+    pub async fn call_contract_with_retry<F, Fut, T>(
         &self,
-        call_fn: impl Fn() -> T + Send + 'static,
+        call_fn: F,
         max_retries: u32,
-    ) -> Result<T::Output, EthereumError>
+    ) -> Result<T, EthereumError>
     where
-        T: std::future::Future + Send,
-        T::Output: Send,
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<T, Box<dyn std::error::Error + Send + Sync>>>,
+        T: Send,
     {
-        let mut attempts = 0;
-        
-        loop {
-            match tokio::spawn(call_fn()).await {
+        for attempt in 1..=max_retries {
+            tracing::debug!(attempt, max_retries, "Attempting contract call");
+            
+            match call_fn().await {
                 Ok(result) => return Ok(result),
-                Err(e) if attempts < max_retries => {
-                    attempts += 1;
-                    let delay = Duration::from_millis(100 * (2_u64.pow(attempts - 1))); // Exponential backoff
-                    
+                Err(e) => {
                     tracing::warn!(
-                        attempt = attempts,
-                        max_retries = max_retries,
-                        delay_ms = delay.as_millis(),
+                        attempt,
+                        max_retries,
                         error = %e,
-                        "Contract call failed, retrying..."
+                        "Contract call failed"
                     );
                     
-                    sleep(delay).await;
-                }
-                Err(e) => {
-                    return Err(EthereumError::ContractError(format!(
-                        "Contract call failed after {} attempts: {}", max_retries, e
-                    )));
+                    if attempt < max_retries {
+                        let delay = Duration::from_millis(100 * attempt as u64);
+                        tokio::time::sleep(delay).await;
+                    } else {
+                        return Err(EthereumError::ContractError(format!(
+                            "Failed after {} attempts: {}", 
+                            max_retries, 
+                            e
+                        )));
+                    }
                 }
             }
         }
+        
+        Err(EthereumError::MaxRetriesExceeded(max_retries))
     }
     
     /// Get the provider for direct access

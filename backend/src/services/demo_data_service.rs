@@ -2,20 +2,21 @@ use crate::error::AppError;
 use crate::models::Position;
 use crate::services::{GraphService, BlockchainService};
 use bigdecimal::BigDecimal;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use chrono::Utc;
+use serde::Deserialize;
 use std::collections::HashMap;
 use reqwest::Client;
 use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct DemoDataService {
-    graph_service: GraphService,
-    blockchain_service: BlockchainService,
+    _graph_service: GraphService,
+    _blockchain_service: BlockchainService,
     client: Client,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct UniswapPosition {
     id: String,
     owner: String,
@@ -40,6 +41,7 @@ struct UniswapPosition {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Pool {
     id: String,
     token0: Token,
@@ -51,6 +53,7 @@ struct Pool {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Token {
     id: String,
     symbol: String,
@@ -59,6 +62,7 @@ struct Token {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct PositionsResponse {
     positions: Vec<UniswapPosition>,
 }
@@ -66,8 +70,8 @@ struct PositionsResponse {
 impl DemoDataService {
     pub fn new(blockchain_service: BlockchainService) -> Self {
         Self {
-            graph_service: GraphService::new(),
-            blockchain_service,
+            _graph_service: GraphService::new(),
+            _blockchain_service: blockchain_service,
             client: Client::new(),
         }
     }
@@ -198,8 +202,8 @@ impl DemoDataService {
         let token1 = pool.get("token1").ok_or_else(|| AppError::ExternalApiError("Missing token1".to_string()))?;
 
         let pool_address = pool.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let token0_symbol = token0.get("symbol").and_then(|v| v.as_str()).unwrap_or("TOKEN0");
-        let token1_symbol = token1.get("symbol").and_then(|v| v.as_str()).unwrap_or("TOKEN1");
+        let _token0_symbol = token0.get("symbol").and_then(|v| v.as_str()).unwrap_or("TOKEN0");
+        let _token1_symbol = token1.get("symbol").and_then(|v| v.as_str()).unwrap_or("TOKEN1");
 
         // Calculate position value from liquidity and pool data
         let liquidity_str = pos_data.get("liquidity").and_then(|v| v.as_str()).unwrap_or("0");
@@ -281,8 +285,8 @@ impl DemoDataService {
         pool_address: &str,
         token0_address: &str,
         token1_address: &str,
-        token0_symbol: &str,
-        token1_symbol: &str,
+        _token0_symbol: &str,
+        _token1_symbol: &str,
         usd_value: f64,
         fee_tier: i32,
     ) -> Position {

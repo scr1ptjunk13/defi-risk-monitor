@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, RwLock, mpsc};
+use tokio::sync::{broadcast, RwLock};
 use tokio::time::interval;
 use chrono::{DateTime, Utc};
 use bigdecimal::BigDecimal;
 use tracing::{info, warn, error, debug};
 use uuid::Uuid;
-use sqlx::QueryBuilder;
 use crate::models::{PoolState, PriceHistory};
 use crate::services::{
     DexWebSocketClient, PoolUpdate, PriceFeedService, PriceStorageService,
@@ -248,7 +247,7 @@ impl DataIngestionService {
     async fn start_pool_update_processor(&self) -> Result<(), AppError> {
         let mut pool_receiver = self.pool_updates_tx.subscribe();
         let pool_queue = self.pool_update_queue.clone();
-        let real_time_risk_service = self.real_time_risk_service.clone();
+        let _real_time_risk_service = self.real_time_risk_service.clone();
         let websocket_service = self.websocket_service.clone();
         let database_ops = self.database_ops.clone();
         let batch_size = self.config.batch_size;
@@ -341,7 +340,7 @@ impl DataIngestionService {
     /// Start batch database writer for efficient bulk operations
     async fn start_batch_writer(&self) -> Result<(), AppError> {
         let pool_queue = self.pool_update_queue.clone();
-        let price_queue = self.price_update_queue.clone();
+        let _price_queue = self.price_update_queue.clone();
         let database_ops = self.database_ops.clone();
         let batch_interval = Duration::from_millis(self.config.pool_state_update_interval_ms);
 

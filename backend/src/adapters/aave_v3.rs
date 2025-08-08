@@ -6,12 +6,12 @@ use super::traits::{DeFiAdapter, Position, AdapterError};
 
 /// Aave V3 protocol adapter
 pub struct AaveV3Adapter {
-    client: EthereumClient,
+    _client: EthereumClient,
 }
 
 impl AaveV3Adapter {
     pub fn new(client: EthereumClient) -> Self {
-        Self { client }
+        Self { _client: client }
     }
 }
 

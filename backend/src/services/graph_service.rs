@@ -24,11 +24,13 @@ struct GraphResponse<T> {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct GraphError {
     message: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct PoolData {
     id: String,
     #[serde(rename = "volumeUSD")]
@@ -42,6 +44,7 @@ struct PoolData {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct PoolDayData {
     date: i64,
     #[serde(rename = "volumeUSD")]
@@ -129,9 +132,9 @@ impl GraphService {
             .ok_or_else(|| AppError::ExternalApiError("No pool data found".to_string()))?;
 
         // Parse current totals
-        let total_volume_usd = pool_data.volume_usd.parse::<f64>()
+        let _total_volume_usd = pool_data.volume_usd.parse::<f64>()
             .map_err(|_| AppError::ExternalApiError("Invalid volume data".to_string()))?;
-        let total_fees_usd = pool_data.fees_usd.parse::<f64>()
+        let _total_fees_usd = pool_data.fees_usd.parse::<f64>()
             .map_err(|_| AppError::ExternalApiError("Invalid fees data".to_string()))?;
         let tvl_usd = pool_data.tvl_usd.parse::<f64>()
             .map_err(|_| AppError::ExternalApiError("Invalid TVL data".to_string()))?;
