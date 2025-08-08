@@ -49,6 +49,14 @@ impl EthereumClient {
         Ok(client)
     }
     
+    /// Create a new Ethereum client from an existing provider
+    pub fn from_provider(provider: RootProvider<Http<Client>>) -> Self {
+        Self {
+            provider,
+            rpc_url: "from_existing_provider".to_string(),
+        }
+    }
+    
     /// Test the RPC connection by getting the latest block number
     pub async fn test_connection(&self) -> Result<(), EthereumError> {
         match self.provider.get_block_number().await {

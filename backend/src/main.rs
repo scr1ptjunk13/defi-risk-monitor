@@ -42,13 +42,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start system health monitoring
     SystemHealthIntegration::start_background_monitoring(settings.clone()).await?;
     
-    // Start monitoring service in background
+    // TEMPORARILY DISABLED: Start monitoring service in background
+    // This prevents Infura rate limiting while testing wallet input
     let monitoring_handle = {
-        let monitoring_service = MonitoringService::new(db_pool.clone(), settings.clone())?;
         tokio::spawn(async move {
-            if let Err(e) = monitoring_service.start_monitoring().await {
-                error!("Monitoring service failed: {}", e);
-            }
+            info!("Background monitoring disabled for testing");
+            // let monitoring_service = MonitoringService::new(db_pool.clone(), settings.clone())?;
+            // if let Err(e) = monitoring_service.start_monitoring().await {
+            //     error!("Monitoring service failed: {}", e);
+            // }
         })
     };
     
@@ -66,11 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("DeFi Risk Monitor started successfully");
     info!("API server running on {}:{}", settings.api.host, settings.api.port);
     
-    // Wait for both services
+    // Wait for web server (monitoring disabled for testing)
     tokio::select! {
-        _ = monitoring_handle => {
-            error!("Monitoring service stopped unexpectedly");
-        }
         _ = server_handle => {
             error!("Web server stopped unexpectedly");
         }
@@ -78,6 +77,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("Received shutdown signal");
         }
     }
+    
+    // Clean up the monitoring handle
+    monitoring_handle.abort();
     
     info!("Shutting down DeFi Risk Monitor");
     Ok(())

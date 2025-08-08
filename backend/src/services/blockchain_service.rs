@@ -207,7 +207,7 @@ impl BlockchainService {
         Ok(symbol.to_string())
     }
 
-    fn get_provider_for_chain(&self, chain_id: i32) -> Result<&Arc<RootProvider<Http<Client>>>, AppError> {
+    pub fn get_provider_for_chain(&self, chain_id: i32) -> Result<&Arc<RootProvider<Http<Client>>>, AppError> {
         match chain_id {
             1 => Ok(&self.ethereum_provider),
             137 => Ok(&self.polygon_provider),

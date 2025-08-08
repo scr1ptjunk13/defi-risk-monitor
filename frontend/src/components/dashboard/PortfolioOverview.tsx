@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { usePortfolio } from '../../hooks/usePortfolio';
+import { Position as ApiPosition } from '../../services/api';
 
 interface PortfolioOverviewProps {
   userAddress: string;
@@ -17,7 +19,8 @@ interface PortfolioMetrics {
   riskTrend: 'up' | 'down' | 'stable';
 }
 
-interface Position {
+// Use the API Position interface, but create a local interface for display
+interface DisplayPosition {
   id: string;
   protocol: string;
   pair: string;
@@ -30,86 +33,83 @@ interface Position {
 
 const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, userTier }) => {
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [displayPositions, setDisplayPositions] = useState<DisplayPosition[]>([]);
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | '90d'>('24h');
+  
+  // Use the portfolio hook for real data
+  const {
+    portfolio,
+    positions,
+    loading,
+    error,
+    lastUpdated,
+    fetchPortfolio,
+    refreshPortfolio
+  } = usePortfolio();
 
+  // Fetch portfolio data when component mounts or user address changes
   useEffect(() => {
-    // Simulate API call - replace with actual API integration
-    const fetchPortfolioData = async () => {
-      setLoading(true);
+    if (userAddress && userAddress !== 'demo') {
+      fetchPortfolio(userAddress);
+    }
+  }, [userAddress, fetchPortfolio]);
+
+  // Update metrics and display positions when portfolio data changes
+  useEffect(() => {
+    if (portfolio && positions) {
+      // Calculate metrics from real portfolio data
+      const activePositions = positions.filter(p => parseFloat(p.amount_usd || '0') > 0).length;
+      const uniqueProtocols = new Set(positions.map(p => p.protocol)).size;
       
-      // Mock data - replace with actual API calls
-      setTimeout(() => {
-        setMetrics({
-          totalValue: 2847392.50,
-          totalPnL: 128492.30,
-          pnlPercentage: 4.72,
-          activePositions: 5,
-          protocols: 5,
-          riskScore: 78,
-          riskTrend: 'up'
-        });
+      setMetrics({
+        totalValue: portfolio.total_value_usd,
+        totalPnL: portfolio.total_pnl_usd,
+        pnlPercentage: portfolio.pnl_percentage,
+        activePositions,
+        protocols: uniqueProtocols,
+        riskScore: portfolio.risk_score,
+        riskTrend: portfolio.pnl_percentage > 0 ? 'up' : portfolio.pnl_percentage < 0 ? 'down' : 'stable'
+      });
 
-        setPositions([
-          {
-            id: '1',
-            protocol: 'Uniswap V3',
-            pair: 'ETH/USDC',
-            value: 485920.30,
-            pnl: 23847.20,
-            pnlPercentage: 5.16,
-            riskScore: 65,
-            chain: 'Ethereum'
-          },
-          {
-            id: '2',
-            protocol: 'Aave V3',
-            pair: 'WETH Supply',
-            value: 324850.75,
-            pnl: 18293.45,
-            pnlPercentage: 5.96,
-            riskScore: 42,
-            chain: 'Ethereum'
-          },
-          {
-            id: '3',
-            protocol: 'Curve',
-            pair: 'stETH/ETH',
-            value: 298475.20,
-            pnl: 12847.85,
-            pnlPercentage: 4.49,
-            riskScore: 58,
-            chain: 'Ethereum'
-          },
-          {
-            id: '4',
-            protocol: 'Compound V3',
-            pair: 'USDC Supply',
-            value: 187394.60,
-            pnl: 3847.20,
-            pnlPercentage: 2.09,
-            riskScore: 35,
-            chain: 'Ethereum'
-          },
-          {
-            id: '5',
-            protocol: 'Lido',
-            pair: 'stETH',
-            value: 142850.45,
-            pnl: 8394.75,
-            pnlPercentage: 6.24,
-            riskScore: 28,
-            chain: 'Ethereum'
-          }
-        ]);
-        
-        setLoading(false);
-      }, 1000);
-    };
-
-    fetchPortfolioData();
-  }, [userAddress, timeRange]);
+      // Convert API positions to display format
+      const converted: DisplayPosition[] = positions.map(pos => ({
+        id: pos.id,
+        protocol: pos.protocol === 'uniswap_v3' ? 'Uniswap V3' : pos.protocol,
+        pair: pos.pool_address || 'Unknown Pool', // Use pool_address as pair info
+        value: parseFloat(pos.amount_usd || '0'), // Convert string to number
+        pnl: parseFloat(pos.pnl_usd || '0'), // Convert string to number
+        pnlPercentage: 0, // Calculate from pnl/value if needed
+        riskScore: 50, // Default risk score
+        chain: 'Ethereum' // All positions are on Ethereum mainnet
+      }));
+      
+      setDisplayPositions(converted);
+    } else if (userAddress === 'demo') {
+      // Keep demo data for demo mode
+      setMetrics({
+        totalValue: 2847392.50,
+        totalPnL: 128492.30,
+        pnlPercentage: 4.72,
+        activePositions: 5,
+        protocols: 5,
+        riskScore: 78,
+        riskTrend: 'up'
+      });
+      
+      setDisplayPositions([
+        {
+          id: '1',
+          protocol: 'Uniswap V3',
+          pair: 'ETH/USDC',
+          value: 485920.30,
+          pnl: 23847.20,
+          pnlPercentage: 5.16,
+          riskScore: 65,
+          chain: 'Ethereum'
+        }
+      ]);
+    }
+  }, [portfolio, positions, userAddress]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -150,25 +150,86 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
     );
   }
 
+  // Show error state if API call failed
+  if (error && userAddress !== 'demo') {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="text-2xl">⚠️</div>
+            <div>
+              <h3 className="text-lg font-semibold text-red-400">Unable to Load Portfolio</h3>
+              <p className="text-red-300 text-sm">{error}</p>
+            </div>
+          </div>
+          <div className="flex space-x-3">
+            <button 
+              onClick={refreshPortfolio}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              Retry
+            </button>
+            <button 
+              onClick={() => window.location.href = '/check-risk'}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              Check Different Address
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header with Time Range Selector */}
+      {/* Header with Time Range Selector and Status */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Portfolio Overview</h2>
-        <div className="flex space-x-2">
-          {(['24h', '7d', '30d', '90d'] as const).map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`px-3 py-1 rounded text-sm transition-colors ${
-                timeRange === range
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              {range}
-            </button>
-          ))}
+        <div>
+          <h2 className="text-2xl font-bold text-white">Portfolio Overview</h2>
+          {lastUpdated && (
+            <p className="text-sm text-gray-400 mt-1">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center space-x-4">
+          {/* Connection Status */}
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${
+              error ? 'bg-red-500' : loading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'
+            }`}></div>
+            <span className="text-xs text-gray-400">
+              {error ? 'Disconnected' : loading ? 'Syncing...' : 'Live'}
+            </span>
+          </div>
+          
+          {/* Refresh Button */}
+          <button
+            onClick={refreshPortfolio}
+            disabled={loading}
+            className="flex items-center space-x-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm text-gray-300 transition-colors"
+          >
+            <span className={loading ? 'animate-spin' : ''}>↻</span>
+            <span>Refresh</span>
+          </button>
+          
+          {/* Time Range Selector */}
+          <div className="flex bg-gray-800 rounded-lg p-1">
+            {(['24h', '7d', '30d', '90d'] as const).map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  timeRange === range
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -247,7 +308,7 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {positions.slice(0, userTier === 'basic' ? 5 : positions.length).map((position) => (
+              {displayPositions.slice(0, userTier === 'basic' ? 5 : displayPositions.length).map((position) => (
                 <tr key={position.id} className="hover:bg-gray-800/30">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
@@ -263,7 +324,7 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
                       {position.pnl >= 0 ? '+' : ''}{formatCurrency(position.pnl)}
                     </div>
                     <div className={`text-xs ${position.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      ({position.pnl >= 0 ? '+' : ''}{position.pnlPercentage.toFixed(2)}%)
+                      ({position.pnl >= 0 ? '+' : ''}{(position.pnlPercentage || 0).toFixed(2)}%)
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -288,10 +349,10 @@ const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({ userAddress, user
           </table>
         </div>
 
-        {userTier === 'basic' && positions.length > 5 && (
+        {userTier === 'basic' && displayPositions.length > 5 && (
           <div className="p-4 bg-gray-800/30 border-t border-gray-700 text-center">
             <p className="text-sm text-gray-400 mb-2">
-              Showing 5 of {positions.length} positions
+              Showing 5 of {displayPositions.length} positions
             </p>
             <button className="text-blue-400 hover:text-blue-300 text-sm font-medium">
               Upgrade to Professional to view all positions →

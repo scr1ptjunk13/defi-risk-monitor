@@ -293,13 +293,87 @@ pub async fn get_position_stats(
     Ok(Json(response))
 }
 
+// New endpoint to get positions by wallet address (including ENS)
+pub async fn get_positions_by_address(
+    State(state): State<AppState>,
+    Path(address): Path<String>,
+) -> Result<Json<Vec<PositionResponse>>, AppError> {
+    use alloy::primitives::Address;
+    use std::str::FromStr;
+    use crate::adapters::uniswap_v3::UniswapV3Adapter;
+    use crate::adapters::traits::DeFiAdapter;
+    
+    tracing::info!("Fetching real Uniswap V3 positions for address: {}", address);
+    
+    // Parse wallet address (TODO: Add ENS resolution)
+    let wallet_address = if address.ends_with(".eth") {
+        // For vitalik.eth, use his actual address for now
+        if address == "vitalik.eth" {
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string()
+        } else {
+            return Err(AppError::ValidationError("ENS resolution not implemented yet. Please use a regular Ethereum address.".to_string()));
+        }
+    } else {
+        address.clone()
+    };
+    
+    let eth_address = Address::from_str(&wallet_address)
+        .map_err(|e| AppError::ValidationError(format!("Invalid Ethereum address: {}", e)))?;
+    
+    // Create EthereumClient from BlockchainService provider
+    let ethereum_provider = state.blockchain_service.get_provider_for_chain(1) // Ethereum mainnet
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to get Ethereum provider: {}", e)))?;
+    
+    // Create EthereumClient wrapper for the adapter
+    let ethereum_client = crate::blockchain::EthereumClient::from_provider((**ethereum_provider).clone());
+    
+    // Create Uniswap V3 adapter and fetch real positions
+    let uniswap_adapter = UniswapV3Adapter::new(ethereum_client)
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to create Uniswap V3 adapter: {}", e)))?;
+    
+    let positions = uniswap_adapter.fetch_positions(eth_address).await
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to fetch Uniswap V3 positions: {}", e)))?;
+    
+    tracing::info!("Found {} Uniswap V3 positions for {}", positions.len(), wallet_address);
+    
+    // Convert adapter positions to PositionResponse format
+    let position_responses: Vec<PositionResponse> = positions.into_iter().map(|pos| {
+        PositionResponse {
+            id: uuid::Uuid::new_v4(), // Generate new UUID
+            user_id: uuid::Uuid::new_v4(), // Mock user ID
+            protocol: pos.protocol,
+            pool_address: pos.pair.clone(), // Use pair info as pool address for now
+            chain_id: 1, // Ethereum mainnet
+            token0_address: "0x0000000000000000000000000000000000000000".to_string(), // TODO: Extract from metadata
+            token1_address: "0x0000000000000000000000000000000000000000".to_string(), // TODO: Extract from metadata
+            position_type: pos.position_type,
+            entry_price: BigDecimal::from(0), // TODO: Calculate from position data
+            current_price: Some(BigDecimal::from(0)), // TODO: Get current price
+            amount_usd: BigDecimal::try_from(pos.value_usd).unwrap_or_default(),
+            liquidity_amount: pos.metadata.get("liquidity").and_then(|v| v.as_str()).map(|s| BigDecimal::from_str(s).unwrap_or_default()),
+            fee_tier: pos.metadata.get("fee_tier").and_then(|v| v.as_u64()).map(|v| v as i32),
+            tick_lower: pos.metadata.get("tick_lower").and_then(|v| v.as_i64()).map(|v| v as i32),
+            tick_upper: pos.metadata.get("tick_upper").and_then(|v| v.as_i64()).map(|v| v as i32),
+            pnl_usd: Some(BigDecimal::try_from(pos.pnl_usd).unwrap_or_default()),
+            fees_earned_usd: Some(BigDecimal::from(0)), // TODO: Calculate fees
+            impermanent_loss_usd: Some(BigDecimal::from(0)), // TODO: Calculate IL
+            is_active: true, // Assume active if returned by adapter
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }).collect();
+    
+    Ok(Json(position_responses))
+}
+
 // Create router
 pub fn create_position_routes() -> Router<AppState> {
     Router::new()
         .route("/positions", post(create_position))
         .route("/positions", get(list_positions))
         .route("/positions/stats", get(get_position_stats))
-        .route("/positions/:position_id", get(get_position))
-        .route("/positions/:position_id", put(update_position))
-        .route("/positions/:position_id", delete(delete_position))
+        .route("/positions/wallet/:address", get(get_positions_by_address))  // New endpoint for frontend
+        .route("/positions/id/:position_id", get(get_position))
+        .route("/positions/id/:position_id", put(update_position))
+        .route("/positions/id/:position_id", delete(delete_position))
 }
