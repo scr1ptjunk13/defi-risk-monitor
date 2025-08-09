@@ -56,17 +56,51 @@ impl MonitoringService {
     pub async fn start_monitoring(&self) -> Result<(), AppError> {
         info!("Starting risk monitoring service");
         
-        let mut interval = time::interval(Duration::from_secs(
-            self.settings.blockchain.risk_check_interval_seconds
-        ));
-
-        loop {
-            interval.tick().await;
+        // 🚨 DEVELOPMENT MODE: Disable continuous monitoring to prevent API spam
+        // Only enable continuous monitoring in production with proper rate limiting
+        let is_development = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()) == "development";
+        
+        if is_development {
+            info!("🔧 DEVELOPMENT MODE: Continuous monitoring DISABLED to prevent Alchemy API spam");
+            info!("📊 Risk monitoring will only run on-demand when frontend requests data");
             
-            if let Err(e) = self.monitor_all_positions().await {
-                error!("Error during monitoring cycle: {}", e);
+            // Keep the service alive but don't poll continuously
+            loop {
+                tokio::time::sleep(Duration::from_secs(3600)).await; // Sleep for 1 hour
+            }
+        } else {
+            info!("🚀 PRODUCTION MODE: Starting continuous monitoring");
+            let mut interval = time::interval(Duration::from_secs(
+                self.settings.blockchain.risk_check_interval_seconds
+            ));
+
+            loop {
+                interval.tick().await;
+                
+                if let Err(e) = self.monitor_all_positions().await {
+                    error!("Error during monitoring cycle: {}", e);
+                }
             }
         }
+    }
+
+    /// 🎯 ON-DEMAND MONITORING: Monitor positions for a specific user address only
+    /// This prevents unnecessary API calls by only fetching data when requested
+    pub async fn monitor_user_positions(&self, user_address: &str) -> Result<(), AppError> {
+        info!("🎯 ON-DEMAND: Monitoring positions for user {}", user_address);
+
+        // Fetch positions only for the specific user
+        let positions = self.fetch_user_positions(user_address).await?;
+        info!("📊 Found {} positions for user {}", positions.len(), user_address);
+
+        for position in positions {
+            if let Err(e) = self.monitor_position(&position).await {
+                error!("❌ Error monitoring position {}: {}", position.id, e);
+            }
+        }
+
+        info!("✅ Completed on-demand monitoring for user {}", user_address);
+        Ok(())
     }
 
     async fn monitor_all_positions(&self) -> Result<(), AppError> {
@@ -202,9 +236,22 @@ impl MonitoringService {
         Ok(())
     }
 
+    /// 🎯 Fetch positions for a specific user address (for on-demand monitoring)
+    async fn fetch_user_positions(&self, user_address: &str) -> Result<Vec<Position>, AppError> {
+        let positions = sqlx::query_as::<_, Position>(
+            "SELECT * FROM positions WHERE user_address = $1 AND is_active = true"
+        )
+        .bind(user_address)
+        .fetch_all(&self.db_pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(positions)
+    }
+
     async fn fetch_all_positions(&self) -> Result<Vec<Position>, AppError> {
         let positions = sqlx::query_as::<_, Position>(
-            "SELECT * FROM positions ORDER BY created_at DESC"
+            "SELECT * FROM positions WHERE is_active = true"
         )
         .fetch_all(&self.db_pool)
         .await

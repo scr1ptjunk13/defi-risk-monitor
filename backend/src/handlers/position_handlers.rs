@@ -8,13 +8,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use bigdecimal::BigDecimal;
-use num_traits::ToPrimitive;
 use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use crate::{
     services::position_service::PositionService,
     services::risk_calculator::RiskCalculator,
-    models::{PoolState, RiskConfig},
     adapters::traits::DeFiAdapter,
     error::AppError,
     AppState,
@@ -252,6 +250,8 @@ pub async fn list_positions(
     State(state): State<AppState>,
     Query(query): Query<GetPositionsQuery>,
 ) -> Result<Json<PaginatedPositionsResponse>, AppError> {
+    use crate::services::monitoring_service::MonitoringService;
+    
     let position_service = PositionService::new(state.db_pool.clone(), (*state.blockchain_service).clone());
     
     let page = query.page.unwrap_or(1);
@@ -260,6 +260,22 @@ pub async fn list_positions(
     
     // Convert user_id to string for the service call
     let user_address = query.user_id.map(|id| id.to_string()).unwrap_or_default();
+    
+    // 🎯 ON-DEMAND MONITORING: Only fetch fresh blockchain data when frontend requests it
+    // This prevents continuous API polling and respects the 30-second cache
+    if !user_address.is_empty() {
+        tracing::info!("🎯 Frontend requested positions for user: {}", user_address);
+        
+        // Create monitoring service for on-demand updates
+        let monitoring_service = MonitoringService::new(state.db_pool.clone(), state.settings.clone())?;
+        
+        // Only run monitoring for this specific user (respects caching)
+        if let Err(e) = monitoring_service.monitor_user_positions(&user_address).await {
+            tracing::warn!("⚠️ On-demand monitoring failed for user {}: {}", user_address, e);
+            // Continue with cached data if monitoring fails
+        }
+    }
+    
     let positions = position_service.get_user_positions(&user_address).await?;
     
     let total = positions.len() as i64;
@@ -269,6 +285,7 @@ pub async fn list_positions(
     }).collect();
     
     let total_pages = (total as f64 / limit as f64).ceil() as u32;
+    let response_count = position_responses.len(); // Calculate before moving
     
     let response = PaginatedPositionsResponse {
         positions: position_responses,
@@ -277,6 +294,9 @@ pub async fn list_positions(
         limit,
         total_pages,
     };
+    
+    tracing::info!("✅ Returned {} positions for user {} (page {}/{})", 
+                   response_count, user_address, page, total_pages);
     
     Ok(Json(response))
 }
@@ -307,23 +327,19 @@ pub async fn get_positions_by_address(
     Path(address): Path<String>,
 ) -> Result<Json<Vec<PositionResponse>>, AppError> {
     use alloy::primitives::Address;
-    use crate::services::BlockchainService;
     use crate::adapters::uniswap_v3::UniswapV3Adapter;
-    use crate::blockchain::ethereum_client::EthereumClient;
 
     tracing::info!("Fetching real Uniswap V3 positions for address: {}", address);
     
     // Parse wallet address (TODO: Add ENS resolution)
-    let wallet_address = if address.ends_with(".eth") {
-        // For vitalik.eth, use his actual address for now
-        if address == "vitalik.eth" {
-            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string()
-        } else {
-            return Err(AppError::ValidationError("ENS resolution not implemented yet. Please use a regular Ethereum address.".to_string()));
-        }
-    } else {
-        address.clone()
-    };
+    // Use ENS service to resolve address or ENS name
+    let ens_service = crate::services::ens_service::EnsService::new(
+        &std::env::var("ETHEREUM_RPC_URL").unwrap_or_else(|_| "https://eth-mainnet.g.alchemy.com/v2/demo".to_string())
+    ).map_err(|e| AppError::ConfigError(format!("Failed to create ENS service: {}", e)))?;
+    
+    let wallet_address = ens_service.resolve_address_or_ens(&address).await
+        .map_err(|e| AppError::ValidationError(format!("Failed to resolve address/ENS: {}", e)))?
+        .to_string();
     
     let eth_address = Address::from_str(&wallet_address)
         .map_err(|e| AppError::ValidationError(format!("Invalid Ethereum address: {}", e)))?;
@@ -360,8 +376,8 @@ pub async fn get_positions_by_address(
             protocol: pos.protocol,
             pool_address: pos.pair.clone(), // Use pair info as pool address for now
             chain_id: 1, // Ethereum mainnet
-            token0_address: "0x0000000000000000000000000000000000000000".to_string(), // TODO: Extract from metadata
-            token1_address: "0x0000000000000000000000000000000000000000".to_string(), // TODO: Extract from metadata
+            token0_address: pos.metadata.get("token0").and_then(|v| v.as_str()).unwrap_or("0x0000000000000000000000000000000000000000").to_string(),
+            token1_address: pos.metadata.get("token1").and_then(|v| v.as_str()).unwrap_or("0x0000000000000000000000000000000000000000").to_string(),
             position_type: pos.position_type,
             entry_price: BigDecimal::from(0), // TODO: Calculate from position data
             current_price: Some(BigDecimal::from(0)), // TODO: Get current price

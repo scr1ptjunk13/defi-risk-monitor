@@ -65,7 +65,9 @@ pub async fn fetch_positions_handler(
     State(state): State<AppState>,
     Query(query): Query<FetchPositionsQuery>,
 ) -> Result<Json<LivePositionsResponse<LivePositionsPage<LivePosition>>>, (StatusCode, Json<LivePositionsResponse<HashMap<&'static str, &'static str>>>)> {
-    let address_str = query.address.unwrap_or_else(|| "vitalik.eth".to_string());
+    let address_str = query.address.ok_or_else(|| {
+        AppError::ValidationError("Address or ENS name is required. Please provide either an Ethereum address (0x...) or ENS name (name.eth)".to_string())
+    })?;
     
     // Validate and parse address
     let address = match EthereumClient::validate_address(&address_str) {
@@ -185,7 +187,9 @@ pub async fn positions_summary_handler(
     State(_state): State<AppState>,
     Query(query): Query<FetchPositionsQuery>,
 ) -> Result<Json<LivePositionsResponse<Vec<LivePositionSummaryItem>>>, (StatusCode, Json<LivePositionsResponse<HashMap<&'static str, &'static str>>>)> {
-    let _address = query.address.unwrap_or_else(|| "vitalik.eth".to_string());
+    let _address = query.address.ok_or_else(|| {
+        AppError::ValidationError("Address or ENS name is required. Please provide either an Ethereum address (0x...) or ENS name (name.eth)".to_string())
+    })?;
 
     // TODO: Compute real summary after integrating adapters and price feed
     Ok(Json(LivePositionsResponse {

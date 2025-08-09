@@ -38,7 +38,11 @@ pub mod risk_assessment_service;
 pub mod risk_analytics_service;
 pub mod system_health_service;
 pub mod system_health_helpers;
+pub use system_health_service::*;
+pub use system_health_helpers::*;
+pub use ens_service::*;
 pub mod graceful_degradation;
+pub mod ens_service;
 
 pub use blockchain_service::*;
 pub use contract_bindings::*;
