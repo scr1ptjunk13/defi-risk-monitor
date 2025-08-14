@@ -332,8 +332,8 @@ impl RocketPoolAdapter {
         
         if minipool_count > U256::ZERO {
             // Each minipool represents 16 ETH from node operator + 16 ETH from protocol
-            let node_eth_deposited = minipool_count.to::<f64>() * 16.0; // Node operator's ETH
-            let protocol_eth_matched = active_minipool_count.to::<f64>() * 16.0; // Protocol matched ETH
+            let node_eth_deposited = minipool_count.try_into().unwrap_or(0.0) * 16.0; // Node operator's ETH
+            let protocol_eth_matched = active_minipool_count.try_into().unwrap_or(0.0) * 16.0; // Protocol matched ETH
             
             // Get current node operator APY (higher than liquid stakers due to commission)
             let node_apy = self.get_node_operator_apy().await.unwrap_or(5.5); // Typically higher
@@ -432,7 +432,7 @@ impl RocketPoolAdapter {
             ._0;
         
         // Exchange rate is returned as wei, convert to ratio
-        let rate = exchange_rate.to::<f64>() / 10f64.powi(18);
+        let rate = exchange_rate.try_into().unwrap_or(0.0) / 10f64.powi(18);
         
         tracing::info!("Current rETH/ETH exchange rate: {}", rate);
         
@@ -455,12 +455,12 @@ impl RocketPoolAdapter {
             ._0;
         
         // Get minipool status breakdown (this requires pagination in real implementation)
-        let (_initialised, _prelaunch, staking, _withdrawable, _dissolved) = 
+        let status_counts = 
             minipool_manager.getMinipoolCountPerStatus(U256::ZERO, U256::from(1000)).call().await
             .map_err(|e| format!("Failed to get minipool status: {}", e))?;
         
         // Estimate active nodes (assuming most nodes with staking minipools are active)
-        let active_minipools = staking.to::<u64>();
+        let active_minipools = status_counts.staking.try_into().unwrap_or(0u64);
         let estimated_active_nodes = (active_minipools as f64 * 0.8) as u64; // Conservative estimate
         
         Ok(NodeOperatorMetrics {
@@ -488,7 +488,7 @@ impl RocketPoolAdapter {
         let exchange_rate = self.get_reth_exchange_rate().await?;
         
         // Calculate total ETH staked (rETH supply * exchange rate)
-        let total_eth_staked = (reth_supply.to::<f64>() / 10f64.powi(18)) * exchange_rate;
+        let total_eth_staked = (reth_supply.try_into().unwrap_or(0.0) / 10f64.powi(18)) * exchange_rate;
         
         // Get deposit pool balance (ETH waiting to be staked)
         let deposit_pool_balance = deposit_pool.getBalance().call().await
@@ -507,11 +507,11 @@ impl RocketPoolAdapter {
         
         let protocol_metrics = ProtocolMetrics {
             total_eth_staked,
-            reth_supply: reth_supply.to::<f64>() / 10f64.powi(18),
+            reth_supply: reth_supply.try_into().unwrap_or(0.0) / 10f64.powi(18),
             reth_exchange_rate: exchange_rate,
-            node_demand: node_demand.to::<f64>() / 10f64.powi(18),
-            deposit_pool_balance: deposit_pool_balance.to::<f64>() / 10f64.powi(18),
-            network_node_fee: node_fee.to::<f64>() / 10f64.powi(18),
+            node_demand: node_demand.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(18),
+            deposit_pool_balance: deposit_pool_balance.try_into().unwrap_or(0.0) / 10f64.powi(18),
+            network_node_fee: node_fee.try_into().unwrap_or(0.0) / 10f64.powi(18),
         };
         
         tracing::info!(
@@ -587,16 +587,16 @@ impl RocketPoolAdapter {
         // Convert token balance to underlying asset amount
         let underlying_amount = if position.token_symbol == "rETH" {
             // For rETH, convert to ETH equivalent using exchange rate
-            let reth_amount = position.balance.to::<f64>() / 10f64.powi(18);
+            let reth_amount = position.balance.try_into().unwrap_or(0.0) / 10f64.powi(18);
             reth_amount * exchange_rate
         } else {
             // For other tokens, direct conversion
-            position.balance.to::<f64>() / 10f64.powi(position.decimals as i32)
+            position.balance.try_into().unwrap_or(0.0) / 10f64.powi(position.decimals as i32)
         };
         
         // Calculate USD value
         let base_value_usd = underlying_amount * token_price;
-        let rewards_amount = position.rewards_earned.to::<f64>() / 10f64.powi(position.decimals as i32);
+        let rewards_amount = position.rewards_earned.try_into().unwrap_or(0.0) / 10f64.powi(position.decimals as i32);
         let rewards_value_usd = rewards_amount * token_price;
         
         // Calculate estimated APY-based P&L with position-specific adjustments
@@ -752,8 +752,8 @@ impl RocketPoolAdapter {
         // Current ETH value represents the rewards earned
         
         // This is simplified - in reality you'd need to track when they acquired rETH
-        let reth_amount = reth_balance.to::<f64>();
-        let eth_equivalent = eth_value.to::<f64>();
+        let reth_amount = reth_balance.to::<u128>() as f64;
+        let eth_equivalent = eth_value.to::<u128>() as f64;
         
         // Estimate rewards as the difference (would need historical data for accuracy)
         let estimated_appreciation = eth_equivalent - reth_amount;
@@ -771,7 +771,7 @@ impl RocketPoolAdapter {
         // RPL rewards come from token inflation distributed to stakers
         // Typically around 5-10% annually
         
-        let stake_amount = rpl_stake.to::<f64>();
+        let stake_amount = rpl_stake.to::<u128>() as f64;
         let estimated_rewards_percentage = 0.075; // 7.5% annual, pro-rated
         let estimated_rewards = stake_amount * estimated_rewards_percentage;
         

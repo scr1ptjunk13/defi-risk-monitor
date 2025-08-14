@@ -402,61 +402,8 @@ impl BeefyAdapter {
         self.is_beefy_vault(contract_address).await
     }
     
-    async fn calculate_risk_score(&self, positions: &[Position]) -> Result<u8, AdapterError> {
-        if positions.is_empty() {
-            return Ok(0);
-        }
-        
-        // Beefy risk calculation based on:
-        // - Yield farming inherent risks
-        // - Strategy complexity and type
-        // - Underlying protocol risks
-        // - APY sustainability
-        // - Smart contract risks
-        
-        let mut total_risk = 0u32;
-        let mut total_weight = 0f64;
-        
-        for position in positions {
-            let position_weight = position.value_usd;
-            let mut risk_score = position.risk_score as u32;
-            
-            // Additional position-size based adjustments
-            if position.value_usd > 50_000.0 {
-                risk_score = risk_score.saturating_sub(2); // Large positions get slight discount (more stable)
-            } else if position.value_usd < 100.0 {
-                risk_score += 5; // Very small positions have higher relative gas cost risk
-            }
-            
-            // APY sustainability risk
-            if position.pnl_percentage > 200.0 {
-                risk_score += 25; // Extremely high APY is very risky
-            } else if position.pnl_percentage > 100.0 {
-                risk_score += 15; // Very high APY
-            } else if position.pnl_percentage < 1.0 {
-                risk_score += 10; // Very low APY might indicate problems
-            }
-            
-            // Strategy diversification bonus
-            if let Some(assets) = position.metadata.get("underlying_assets") {
-                if let Some(assets_array) = assets.as_array() {
-                    if assets_array.len() > 2 {
-                        risk_score = risk_score.saturating_sub(3); // Diversified assets
-                    }
-                }
-            }
-            
-            total_risk += (risk_score * position_weight as u32);
-            total_weight += position_weight;
-        }
-        
-        if total_weight > 0.0 {
-            let weighted_risk = (total_risk as f64 / total_weight) as u8;
-            Ok(weighted_risk.min(98)) // Cap at 98
-        } else {
-            Ok(35) // Default Beefy yield farming risk
-        }
-    }
+    // RISK CALCULATION REMOVED - Now handled by separate risk module
+    // This adapter now only fetches position data
     
     async fn get_position_value(&self, position: &Position) -> Result<f64, AdapterError> {
         // For Beefy positions, we can recalculate real-time value

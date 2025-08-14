@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{Address, keccak256, FixedBytes, Bytes},
+    primitives::{Address, keccak256, FixedBytes},
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::http::{Client, Http},
     rpc::types::TransactionRequest,

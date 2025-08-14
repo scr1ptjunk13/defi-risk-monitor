@@ -36,10 +36,11 @@ pub mod comparative_analytics_service;
 pub mod portfolio_service;
 pub mod risk_assessment_service;
 pub mod risk_analytics_service;
+pub mod risk_orchestration_service;
 pub mod system_health_service;
 pub mod system_health_helpers;
 pub use system_health_service::*;
-pub use system_health_helpers::*;
+// pub use system_health_helpers::*; // Commented out - unused
 pub use ens_service::*;
 pub mod graceful_degradation;
 pub mod ens_service;
@@ -70,8 +71,9 @@ pub use real_time_risk_service::*;
 pub use ai_client::*;
 pub use ai_risk_service::*;
 pub use lp_analytics_service::*;
-pub use system_health_service::*;
+// pub use system_health_service::*; // Commented out - unused
 pub use pool_performance_service::*;
 pub use yield_farming_service::*;
 pub use comparative_analytics_service::*;
 pub use risk_assessment_service::*;
+pub use risk_orchestration_service::*;

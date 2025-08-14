@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{Address, U256},
+    primitives::{Address, U256, I256},
     sol,
 };
 use async_trait::async_trait;
@@ -296,7 +296,7 @@ impl EtherFiAdapter {
             ._0;
         
         let exchange_rate = if eeth_total_supply > U256::ZERO {
-            total_pooled_eth.to::<f64>() / eeth_total_supply.to::<f64>()
+            total_pooled_eth.to_string().parse::<f64>().unwrap_or(0.0) / eeth_total_supply.to_string().parse::<f64>().unwrap_or(1.0)
         } else {
             1.0
         };
@@ -345,7 +345,7 @@ impl EtherFiAdapter {
             .map_err(|e| AdapterError::ContractError(format!("Failed to get restaking shares: {}", e)))?
             ._0;
         
-        if eigenpod_shares <= 0 && restaking_shares == U256::ZERO {
+        if eigenpod_shares <= I256::ZERO && restaking_shares == U256::ZERO {
             return Ok(None);
         }
         
@@ -359,8 +359,8 @@ impl EtherFiAdapter {
         let mut positions = Vec::new();
         
         // EigenPod restaking position
-        if eigenpod_shares > 0 {
-            let eigenpod_balance = U256::from(eigenpod_shares.abs() as u64);
+        if eigenpod_shares > I256::ZERO {
+            let eigenpod_balance = U256::from(eigenpod_shares.abs().into_raw().to::<u128>() as u64);
             
             // Restaking typically offers higher APY due to additional AVS rewards
             let restaking_apy = self.get_restaking_apy().await.unwrap_or(6.5);
@@ -388,7 +388,7 @@ impl EtherFiAdapter {
                 .map_err(|e| AdapterError::ContractError(format!("Failed to get share price: {}", e)))?
                 ._0;
             
-            let restaking_eth_value = (restaking_shares.to::<f64>() * share_price.to::<f64>()) / 10f64.powi(36);
+            let restaking_eth_value = (restaking_shares.to_string().parse::<f64>().unwrap_or(0.0) * share_price.to_string().parse::<f64>().unwrap_or(0.0)) / 10f64.powi(36);
             let restaking_apy = self.get_restaking_apy().await.unwrap_or(6.2);
             let rewards_earned = self.estimate_restaking_rewards(user_address, restaking_shares).await;
             
@@ -454,7 +454,7 @@ impl EtherFiAdapter {
             ._0;
         
         let rate = if eeth_total_supply > U256::ZERO {
-            total_pooled_eth.to::<f64>() / eeth_total_supply.to::<f64>()
+            total_pooled_eth.to_string().parse::<f64>().unwrap_or(0.0) / eeth_total_supply.to_string().parse::<f64>().unwrap_or(1.0)
         } else {
             1.0
         };
@@ -479,7 +479,7 @@ impl EtherFiAdapter {
             .map_err(|e| format!("Failed to get total pooled ETH: {}", e))?
             ._0;
         
-        let total_staked_eth = total_pooled_eth.to::<f64>() / 10f64.powi(18);
+        let total_staked_eth = total_pooled_eth.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(18);
         let average_validator_balance = if total_validators > 0 {
             total_staked_eth / total_validators as f64
         } else {
@@ -529,11 +529,11 @@ impl EtherFiAdapter {
             .map_err(|e| format!("Failed to get restaking share price: {}", e))?
             ._0;
         
-        let restaking_tvl = (restaking_total_shares.to::<f64>() * restaking_share_price.to::<f64>()) / 10f64.powi(36);
+        let restaking_tvl = (restaking_total_shares.to_string().parse::<f64>().unwrap_or(0.0) * restaking_share_price.to_string().parse::<f64>().unwrap_or(0.0)) / 10f64.powi(36);
         
         let protocol_metrics = EtherFiProtocolMetrics {
-            total_eth_staked: total_pooled_eth.to::<f64>() / 10f64.powi(18),
-            eeth_supply: eeth_supply.to::<f64>() / 10f64.powi(18),
+            total_eth_staked: total_pooled_eth.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(18),
+            eeth_supply: eeth_supply.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(18),
             eeth_exchange_rate: exchange_rate,
             liquid_capacity: 0.0, // Would need more complex calculation
             restaking_tvl,
@@ -611,22 +611,22 @@ impl EtherFiAdapter {
         let underlying_eth_amount = match position.position_subtype.as_str() {
             "liquid_staking" => {
                 // For eETH, use exchange rate to get ETH equivalent
-                let eeth_amount = position.balance.to::<f64>() / 10f64.powi(18);
+                let eeth_amount = position.balance.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(18);
                 eeth_amount * exchange_rate
             },
             "restaking" => {
                 // For restaking positions, direct ETH equivalent
-                position.balance.to::<f64>() / 10f64.powi(18)
+                position.balance.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(18)
             },
             _ => {
-                // For other positions, direct conversion
-                position.balance.to::<f64>() / 10f64.powi(position.decimals as i32)
+                // For other positions, use standard conversion
+                position.balance.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(position.decimals as i32)
             }
         };
         
         // Calculate USD value
         let base_value_usd = underlying_eth_amount * eth_price;
-        let rewards_amount = position.rewards_earned.to::<f64>() / 10f64.powi(position.decimals as i32);
+        let rewards_amount = position.rewards_earned.to_string().parse::<f64>().unwrap_or(0.0) / 10f64.powi(position.decimals as i32);
         let rewards_value_usd = rewards_amount * eth_price;
         
         // Calculate estimated APY-based P&L with position-specific adjustments
@@ -785,8 +785,8 @@ impl EtherFiAdapter {
         // eETH rewards come from the appreciation of the exchange rate
         // Similar to other liquid staking tokens
         
-        let eeth_amount = eeth_balance.to::<f64>();
-        let eth_equivalent = eth_value.to::<f64>();
+        let eeth_amount = eeth_balance.to_string().parse::<f64>().unwrap_or(0.0);
+        let eth_equivalent = eth_value.to_string().parse::<f64>().unwrap_or(0.0);
         
         // Estimate rewards as the difference (simplified - would need historical data)
         let estimated_appreciation = eth_equivalent - eeth_amount;
@@ -804,7 +804,7 @@ impl EtherFiAdapter {
         // Restaking rewards come from both ETH staking and AVS rewards
         // Typically higher than liquid staking alone
         
-        let balance_amount = restaking_balance.to::<f64>();
+        let balance_amount = restaking_balance.to_string().parse::<f64>().unwrap_or(0.0);
         let estimated_rewards_percentage = 0.065; // 6.5% annual, pro-rated
         let estimated_rewards = balance_amount * estimated_rewards_percentage;
         

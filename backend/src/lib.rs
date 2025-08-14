@@ -9,6 +9,7 @@ pub mod security;
 pub mod auth;
 pub mod utils;
 pub mod database;
+pub mod risk;
 pub mod comprehensive_test_demo;
 
 pub use error::types::*;

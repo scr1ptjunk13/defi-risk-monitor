@@ -1,12 +1,12 @@
 // Enhanced Aave V3 Adapter with proper error handling and fallback strategies
 use alloy::primitives::Address;
 use alloy::sol;
-use alloy::providers::Provider;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use crate::adapters::traits::{DeFiAdapter, Position, AdapterError};
 use crate::blockchain::EthereumClient;
-use std::str::FromStr;
+
 
 // Simplified Aave V3 Pool ABI - only the functions we need
 sol! {
