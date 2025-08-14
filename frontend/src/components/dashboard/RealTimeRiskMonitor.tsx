@@ -1,158 +1,144 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { apiService, PortfolioRiskMetrics, LiveRiskAlert, PositionRiskHeatmap } from '../../services/api';
+import { usePortfolio } from '../../hooks/usePortfolio';
 
 interface RealTimeRiskMonitorProps {
   userAddress: string;
   userTier: 'basic' | 'professional' | 'institutional' | 'enterprise';
 }
 
-interface RiskMetrics {
-  overallRisk: number;
-  liquidityRisk: number;
-  volatilityRisk: number;
-  mevRisk: number;
-  protocolRisk: number;
-  timestamp: number;
-}
-
-interface RiskAlert {
-  id: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  type: string;
-  message: string;
-  positionId?: string;
-  protocol?: string;
-  timestamp: number;
-  acknowledged: boolean;
-}
-
-interface PositionRisk {
-  id: string;
-  protocol: string;
-  pair: string;
-  riskScore: number;
-  riskFactors: {
-    liquidity: number;
-    volatility: number;
-    mev: number;
-    protocol: number;
-  };
-  alerts: number;
-  trend: 'up' | 'down' | 'stable';
-}
+// Using imported interfaces from API service
+// PortfolioRiskMetrics, LiveRiskAlert, PositionRiskHeatmap
 
 const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, userTier }) => {
-  const [riskMetrics, setRiskMetrics] = useState<RiskMetrics | null>(null);
-  const [alerts, setAlerts] = useState<RiskAlert[]>([]);
-  const [positionRisks, setPositionRisks] = useState<PositionRisk[]>([]);
+  const [riskMetrics, setRiskMetrics] = useState<PortfolioRiskMetrics | null>(null);
+  const [alerts, setAlerts] = useState<LiveRiskAlert[]>([]);
+  const [positionRisks, setPositionRisks] = useState<PositionRiskHeatmap[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
   const wsRef = useRef<WebSocket | null>(null);
 
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    // Simulate WebSocket connection - replace with actual WebSocket
-    const connectWebSocket = () => {
-      // Mock WebSocket behavior
-      setIsConnected(true);
+  // Use the same portfolio hook as Portfolio Overview for data consistency
+  const {
+    portfolio,
+    positions,
+    loading,
+    error,
+    lastUpdated,
+    fetchPortfolio,
+    refreshPortfolio
+  } = usePortfolio();
+
+  // Calculate risk metrics from user's actual portfolio positions
+  const calculateRiskMetricsFromPortfolio = () => {
+    if (!portfolio || !positions.length) {
+      setRiskMetrics(null);
+      setPositionRisks([]);
+      return;
+    }
+
+    // Calculate portfolio-level risk metrics based on actual positions
+    const totalValue = portfolio.total_value_usd;
+    let liquidityRisk = 0;
+    let volatilityRisk = 0;
+    let mevRisk = 0;
+    let protocolRisk = 0;
+
+    // Calculate risk factors based on actual positions
+    positions.forEach(position => {
+      const positionWeight = parseFloat(position.amount_usd) / totalValue;
       
-      // Simulate real-time risk updates
-      const interval = setInterval(() => {
-        const now = Date.now();
-        
-        // Update risk metrics with slight variations
-        setRiskMetrics(prev => ({
-          overallRisk: Math.max(0, Math.min(100, (prev?.overallRisk || 75) + (Math.random() - 0.5) * 5)),
-          liquidityRisk: Math.max(0, Math.min(100, (prev?.liquidityRisk || 65) + (Math.random() - 0.5) * 8)),
-          volatilityRisk: Math.max(0, Math.min(100, (prev?.volatilityRisk || 72) + (Math.random() - 0.5) * 6)),
-          mevRisk: Math.max(0, Math.min(100, (prev?.mevRisk || 82) + (Math.random() - 0.5) * 4)),
-          protocolRisk: Math.max(0, Math.min(100, (prev?.protocolRisk || 45) + (Math.random() - 0.5) * 3)),
-
-          timestamp: now
-        }));
-
-        // Occasionally add new alerts
-        if (Math.random() < 0.1) {
-          const alertTypes = [
-            { type: 'MEV Risk', severity: 'high' as const, message: 'High MEV vulnerability detected in ETH/USDC pool' },
-            { type: 'Liquidity Risk', severity: 'medium' as const, message: 'Pool liquidity decreased by 15%' },
-            { type: 'Protocol Risk', severity: 'low' as const, message: 'Protocol upgrade scheduled' },
-            { type: 'Cross-Chain Risk', severity: 'critical' as const, message: 'Bridge congestion detected' }
-          ];
-          
-          const randomAlert = alertTypes[Math.floor(Math.random() * alertTypes.length)];
-          const newAlert: RiskAlert = {
-            id: `alert_${now}`,
-            ...randomAlert,
-            timestamp: now,
-            acknowledged: false,
-            positionId: `pos_${Math.floor(Math.random() * 5) + 1}`,
-            protocol: ['Uniswap V3', 'Aave', 'Curve', 'PancakeSwap'][Math.floor(Math.random() * 4)]
-          };
-          
-          setAlerts(prev => [newAlert, ...prev.slice(0, 19)]);
-        }
-
-        setLastUpdate(now);
-      }, 2000);
-
-      return () => clearInterval(interval);
-    };
-
-    const cleanup = connectWebSocket();
-
-    // Initial data load
-    setRiskMetrics({
-      overallRisk: 78,
-      liquidityRisk: 65,
-      volatilityRisk: 72,
-      mevRisk: 82,
-      protocolRisk: 45,
-
-      timestamp: Date.now()
+      // Calculate position-specific risks (simplified heuristics)
+      const posLiquidityRisk = parseFloat(position.amount_usd) > 10000 ? 70 : 40;
+      const posVolatilityRisk = position.protocol.toLowerCase().includes('uniswap') ? 65 : 45;
+      const posMevRisk = position.protocol.toLowerCase().includes('uniswap') ? 75 : 30;
+      const posProtocolRisk = position.protocol.toLowerCase().includes('uniswap') ? 50 : 40;
+      
+      liquidityRisk += posLiquidityRisk * positionWeight;
+      volatilityRisk += posVolatilityRisk * positionWeight;
+      mevRisk += posMevRisk * positionWeight;
+      protocolRisk += posProtocolRisk * positionWeight;
     });
 
-    setPositionRisks([
-      {
-        id: '1',
-        protocol: 'Uniswap V3',
-        pair: 'ETH/USDC',
-        riskScore: 65,
-        riskFactors: { liquidity: 60, volatility: 70, mev: 80, protocol: 40 },
-        alerts: 2,
-        trend: 'up'
-      },
-      {
-        id: '2',
-        protocol: 'Aave',
-        pair: 'WETH Supply',
-        riskScore: 42,
-        riskFactors: { liquidity: 30, volatility: 45, mev: 20, protocol: 50 },
-        alerts: 0,
-        trend: 'stable'
-      },
-      {
-        id: '3',
-        protocol: 'Curve',
-        pair: 'stETH/ETH',
-        riskScore: 58,
-        riskFactors: { liquidity: 55, volatility: 60, mev: 45, protocol: 35 },
-        alerts: 1,
-        trend: 'down'
-      },
-      {
-        id: '4',
-        protocol: 'PancakeSwap',
-        pair: 'BNB/BUSD',
-        riskScore: 73,
-        riskFactors: { liquidity: 75, volatility: 70, mev: 85, protocol: 60 },
-        alerts: 3,
-        trend: 'up'
-      }
-    ]);
+    const overallRisk = (liquidityRisk * 0.3 + volatilityRisk * 0.25 + mevRisk * 0.25 + protocolRisk * 0.2);
 
-    return cleanup;
+    setRiskMetrics({
+      overall_risk: Math.round(overallRisk),
+      liquidity_risk: Math.round(liquidityRisk),
+      volatility_risk: Math.round(volatilityRisk),
+      mev_risk: Math.round(mevRisk),
+      protocol_risk: Math.round(protocolRisk),
+      timestamp: new Date().toISOString()
+    });
+
+    // Create position risk heatmap from actual positions
+    const heatmap = positions.map(position => {
+      const positionValue = parseFloat(position.amount_usd);
+      const pnl = parseFloat(position.pnl_usd || '0');
+      
+      return {
+        id: position.id,
+        protocol: position.protocol,
+        pair: `${position.token0_address.slice(0,4)}.../${position.token1_address.slice(0,4)}...`, // Simplified pair display
+        risk_score: position.risk_score || Math.round(overallRisk),
+        risk_factors: {
+          liquidity: positionValue > 10000 ? 70 : 40,
+          volatility: position.protocol.toLowerCase().includes('uniswap') ? 65 : 45,
+          mev: position.protocol.toLowerCase().includes('uniswap') ? 75 : 30,
+          protocol: position.protocol.toLowerCase().includes('uniswap') ? 50 : 40
+        },
+        alerts: 0, // TODO: Calculate based on risk thresholds
+        trend: pnl > 0 ? 'up' as const : pnl < 0 ? 'down' as const : 'stable' as const
+      };
+    });
+
+    setPositionRisks(heatmap);
+    setIsConnected(true);
+    setLastUpdate(Date.now());
+  };
+
+  // Initial data load - fetch portfolio data
+  useEffect(() => {
+    if (userAddress) {
+      fetchPortfolio(userAddress);
+    }
+  }, [userAddress, fetchPortfolio]);
+
+  // Calculate risk metrics when portfolio data changes
+  useEffect(() => {
+    calculateRiskMetricsFromPortfolio();
+  }, [portfolio, positions]);
+
+  // Set up periodic refresh for real-time updates
+  useEffect(() => {
+    if (!userAddress) return;
+    
+    const refreshInterval = setInterval(() => {
+      refreshPortfolio();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [userAddress, refreshPortfolio]);
+
+  // WebSocket connection for real-time updates (future enhancement)
+  useEffect(() => {
+    // TODO: Implement WebSocket connection for real-time updates
+    // const connectWebSocket = () => {
+    //   const ws = new WebSocket(`ws://localhost:8080/ws/risk/${userAddress}`);
+    //   wsRef.current = ws;
+    //   // Handle WebSocket messages
+    // };
+    // connectWebSocket();
+    
+    // For now, we'll keep the real-time simulation until WebSocket is implemented
+    // This will be replaced with actual WebSocket updates later
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
   }, [userAddress]);
 
   const getRiskColor = (score: number) => {
@@ -207,18 +193,18 @@ const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, 
       <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">Portfolio Risk Score</h3>
-          <div className={`px-3 py-1 rounded-full text-sm font-medium border ${getRiskColor(riskMetrics?.overallRisk || 0)}`}>
-            {Math.round(riskMetrics?.overallRisk || 0)}/100
+          <div className={`px-3 py-1 rounded-full text-sm font-medium border ${getRiskColor(riskMetrics?.overall_risk || 0)}`}>
+            {Math.round(riskMetrics?.overall_risk || 0)}/100
           </div>
         </div>
         
         {/* Risk Factors Breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {[
-            { key: 'liquidityRisk', label: 'Liquidity', value: riskMetrics?.liquidityRisk || 0 },
-            { key: 'volatilityRisk', label: 'Volatility', value: riskMetrics?.volatilityRisk || 0 },
-            { key: 'mevRisk', label: 'MEV', value: riskMetrics?.mevRisk || 0 },
-            { key: 'protocolRisk', label: 'Protocol', value: riskMetrics?.protocolRisk || 0 },
+            { key: 'liquidity_risk', label: 'Liquidity', value: riskMetrics?.liquidity_risk || 0 },
+            { key: 'volatility_risk', label: 'Volatility', value: riskMetrics?.volatility_risk || 0 },
+            { key: 'mev_risk', label: 'MEV', value: riskMetrics?.mev_risk || 0 },
+            { key: 'protocol_risk', label: 'Protocol', value: riskMetrics?.protocol_risk || 0 },
 
           ].map((factor) => (
             <div key={factor.key} className="bg-gray-800/50 rounded-lg p-3">
@@ -271,7 +257,7 @@ const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, 
                           <span className={`text-xs font-medium px-2 py-1 rounded ${getSeverityColor(alert.severity)}`}>
                             {alert.severity.toUpperCase()}
                           </span>
-                          <span className="text-sm text-gray-400">{alert.type}</span>
+                          <span className="text-sm text-gray-400">{alert.alert_type}</span>
                         </div>
                         <p className="text-sm text-white mb-1">{alert.message}</p>
                         <div className="text-xs text-gray-400">
@@ -321,8 +307,8 @@ const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, 
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-xs">{getTrendIcon(position.trend)}</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor(position.riskScore)}`}>
-                      {position.riskScore}
+                    <span className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor(position.risk_score)}`}>
+                      {position.risk_score}
                     </span>
                     {position.alerts > 0 && (
                       <span className="bg-red-600 text-white text-xs px-1 rounded-full">
@@ -334,22 +320,25 @@ const RealTimeRiskMonitor: React.FC<RealTimeRiskMonitorProps> = ({ userAddress, 
                 
                 {/* Risk Factor Bars */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  {Object.entries(position.riskFactors).map(([factor, value]) => (
-                    <div key={factor} className="flex items-center space-x-2">
-                      <span className="text-gray-400 w-16 capitalize">{factor}:</span>
-                      <div className="flex-1 bg-gray-700 rounded-full h-1">
-                        <div
-                          className={`h-1 rounded-full transition-all ${
-                            value >= 80 ? 'bg-red-500' :
-                            value >= 60 ? 'bg-orange-500' :
-                            value >= 30 ? 'bg-yellow-500' : 'bg-green-500'
-                          }`}
-                          style={{ width: `${value}%` }}
-                        ></div>
+                  {Object.entries(position.risk_factors).map(([factor, value]) => {
+                    const numValue = value as number;
+                    return (
+                      <div key={factor} className="flex items-center space-x-2">
+                        <span className="text-gray-400 w-16 capitalize">{factor}:</span>
+                        <div className="flex-1 bg-gray-700 rounded-full h-1">
+                          <div
+                            className={`h-1 rounded-full transition-all ${
+                              numValue >= 80 ? 'bg-red-500' :
+                              numValue >= 60 ? 'bg-orange-500' :
+                              numValue >= 30 ? 'bg-yellow-500' : 'bg-green-500'
+                            }`}
+                            style={{ width: `${numValue}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-gray-300 w-6">{numValue}</span>
                       </div>
-                      <span className="text-gray-300 w-6">{value}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

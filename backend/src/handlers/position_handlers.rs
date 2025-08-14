@@ -14,6 +14,7 @@ use crate::{
     services::position_service::PositionService,
     services::risk_calculator::RiskCalculator,
     adapters::traits::DeFiAdapter,
+    adapters::aave_v3::AaveV3Adapter,
     error::AppError,
     AppState,
 };
@@ -327,9 +328,9 @@ pub async fn get_positions_by_address(
     Path(address): Path<String>,
 ) -> Result<Json<Vec<PositionResponse>>, AppError> {
     use alloy::primitives::Address;
-    use crate::adapters::uniswap_v3::UniswapV3Adapter;
+    use crate::services::position_aggregator::PositionAggregator;
 
-    tracing::info!("Fetching real Uniswap V3 positions for address: {}", address);
+    tracing::info!("Fetching positions from all protocols for address: {}", address);
     
     // Parse wallet address (TODO: Add ENS resolution)
     // Use ENS service to resolve address or ENS name
@@ -348,17 +349,21 @@ pub async fn get_positions_by_address(
     let ethereum_provider = state.blockchain_service.get_provider_for_chain(1) // Ethereum mainnet
         .map_err(|e| AppError::ExternalServiceError(format!("Failed to get Ethereum provider: {}", e)))?;
     
-    // Create EthereumClient wrapper for the adapter
+    // Create EthereumClient wrapper for the aggregator
     let ethereum_client = crate::blockchain::EthereumClient::from_provider((**ethereum_provider).clone());
     
-    // Create Uniswap V3 adapter and fetch real positions
-    let uniswap_adapter = UniswapV3Adapter::new(ethereum_client)
-        .map_err(|e| AppError::ExternalServiceError(format!("Failed to create Uniswap V3 adapter: {}", e)))?;
+    // Create position aggregator to fetch positions from ALL protocols (Uniswap V3, Aave V3, etc.)
+    let position_aggregator = PositionAggregator::new(
+        ethereum_client,
+        Some(std::env::var("COINGECKO_API_KEY").unwrap_or_else(|_| "demo-key".to_string()))
+    ).await.map_err(|e| AppError::ExternalServiceError(format!("Failed to create position aggregator: {}", e)))?;
     
-    let positions = uniswap_adapter.fetch_positions(eth_address).await
-        .map_err(|e| AppError::ExternalServiceError(format!("Failed to fetch Uniswap V3 positions: {}", e)))?;
+    let portfolio_summary = position_aggregator.fetch_user_portfolio(eth_address).await
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to fetch positions from all protocols: {}", e)))?;
     
-    tracing::info!("Found {} Uniswap V3 positions for {}", positions.len(), wallet_address);
+    let positions = portfolio_summary.positions;
+    
+    tracing::info!("Found {} total positions across all protocols for {}", positions.len(), wallet_address);
     
     // Initialize risk calculator for real risk assessment
     let risk_calculator = RiskCalculator::new();
@@ -399,6 +404,202 @@ pub async fn get_positions_by_address(
     }
     
     Ok(Json(position_responses))
+}
+
+// Test endpoint to debug Aave V3 adapter directly
+pub async fn test_aave_only(
+    State(state): State<AppState>,
+    Path(address): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use alloy::primitives::Address;
+    use std::str::FromStr;
+    
+    tracing::info!("🧪 Testing Aave V3 adapter directly for address: {}", address);
+    
+    // Parse wallet address with ENS resolution
+    let ens_service = crate::services::ens_service::EnsService::new(
+        &std::env::var("ETHEREUM_RPC_URL").unwrap_or_else(|_| "https://eth-mainnet.g.alchemy.com/v2/demo".to_string())
+    ).map_err(|e| AppError::ConfigError(format!("Failed to create ENS service: {}", e)))?;
+    
+    let wallet_address = match ens_service.resolve_address_or_ens(&address).await {
+        Ok(addr) => addr.to_string(),
+        Err(e) => {
+            tracing::warn!("ENS resolution failed, trying direct address parsing: {}", e);
+            address.clone() // Fallback to original address
+        }
+    };
+    
+    let eth_address = Address::from_str(&wallet_address)
+        .map_err(|e| AppError::ValidationError(format!("Invalid Ethereum address: {}", e)))?;
+    
+    // Create EthereumClient
+    let ethereum_provider = state.blockchain_service.get_provider_for_chain(1)
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to get Ethereum provider: {}", e)))?;
+    
+    let ethereum_client = crate::blockchain::EthereumClient::from_provider((**ethereum_provider).clone());
+    
+    // Create Aave V3 adapter
+    let aave_adapter = AaveV3Adapter::new(ethereum_client)
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to create Aave V3 adapter: {}", e)))?;
+    
+    let mut test_results = serde_json::Map::new();
+    test_results.insert("address".to_string(), serde_json::Value::String(wallet_address.clone()));
+    test_results.insert("test_timestamp".to_string(), serde_json::Value::String(chrono::Utc::now().to_rfc3339()));
+    
+    // Test the adapter
+    match aave_adapter.fetch_positions(eth_address).await {
+        Ok(positions) => {
+            tracing::info!("✅ Aave adapter succeeded with {} positions", positions.len());
+            
+            test_results.insert("success".to_string(), serde_json::Value::Bool(true));
+            test_results.insert("position_count".to_string(), serde_json::Value::Number(positions.len().into()));
+            test_results.insert("error".to_string(), serde_json::Value::Null);
+            
+            // Convert positions to response format
+            let position_responses: Vec<PositionResponse> = positions.into_iter().map(|pos| {
+                let risk_score = if pos.value_usd > 1_000_000.0 { 25 } else { 50 }; // Simplified risk
+                
+                PositionResponse {
+                    id: uuid::Uuid::new_v4(),
+                    user_id: uuid::Uuid::new_v4(),
+                    protocol: pos.protocol,
+                    pool_address: pos.pair.clone(),
+                    chain_id: 1,
+                    token0_address: pos.metadata.get("asset_address")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0x0000000000000000000000000000000000000000").to_string(),
+                    token1_address: "0x0000000000000000000000000000000000000000".to_string(), // Aave is single-asset
+                    position_type: pos.position_type,
+                    entry_price: BigDecimal::from(0), // Historical data needed
+                    current_price: Some(BigDecimal::from(0)),
+                    amount_usd: BigDecimal::try_from(pos.value_usd).unwrap_or_default(),
+                    liquidity_amount: pos.metadata.get("atoken_balance")
+                        .and_then(|v| v.as_str())
+                        .map(|s| BigDecimal::from_str(s).unwrap_or_default()),
+                    fee_tier: None, // Not applicable to Aave
+                    tick_lower: None,
+                    tick_upper: None,
+                    pnl_usd: Some(BigDecimal::try_from(pos.pnl_usd).unwrap_or_default()),
+                    fees_earned_usd: Some(BigDecimal::from(0)), // Would be interest earned
+                    impermanent_loss_usd: Some(BigDecimal::from(0)), // Not applicable to Aave
+                    risk_score: Some(risk_score),
+                    is_active: true,
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
+                }
+            }).collect();
+            
+            test_results.insert("positions".to_string(), serde_json::to_value(position_responses)?);
+        },
+        Err(e) => {
+            tracing::error!("❌ Aave adapter failed: {}", e);
+            
+            test_results.insert("success".to_string(), serde_json::Value::Bool(false));
+            test_results.insert("position_count".to_string(), serde_json::Value::Number(0.into()));
+            test_results.insert("error".to_string(), serde_json::Value::String(e.to_string()));
+            test_results.insert("positions".to_string(), serde_json::Value::Array(Vec::new()));
+        }
+    }
+    
+    Ok(Json(serde_json::Value::Object(test_results)))
+}
+
+// Enhanced test endpoint with comprehensive error handling and fallback strategies
+pub async fn test_aave_enhanced(
+    State(state): State<AppState>,
+    Path(address): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use alloy::primitives::Address;
+    use std::str::FromStr;
+    
+    tracing::info!("🧪 Enhanced Aave V3 testing for address: {}", address);
+    
+    // Parse wallet address with ENS resolution
+    let ens_service = crate::services::ens_service::EnsService::new(
+        &std::env::var("ETHEREUM_RPC_URL").unwrap_or_else(|_| "https://eth-mainnet.g.alchemy.com/v2/demo".to_string())
+    ).map_err(|e| AppError::ConfigError(format!("Failed to create ENS service: {}", e)))?;
+    
+    let wallet_address = match ens_service.resolve_address_or_ens(&address).await {
+        Ok(addr) => addr.to_string(),
+        Err(e) => {
+            tracing::warn!("ENS resolution failed, trying direct address parsing: {}", e);
+            address.clone() // Fallback to original address
+        }
+    };
+    
+    let eth_address = Address::from_str(&wallet_address)
+        .map_err(|e| AppError::ValidationError(format!("Invalid Ethereum address: {}", e)))?;
+    
+    // Create EthereumClient
+    let ethereum_provider = state.blockchain_service.get_provider_for_chain(1)
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to get Ethereum provider: {}", e)))?;
+    
+    let ethereum_client = crate::blockchain::EthereumClient::from_provider((**ethereum_provider).clone());
+    
+    // Create enhanced Aave V3 adapter
+    let aave_adapter = AaveV3Adapter::new(ethereum_client)
+        .map_err(|e| AppError::ExternalServiceError(format!("Failed to create Aave V3 adapter: {}", e)))?;
+    
+    let mut test_results = serde_json::Map::new();
+    test_results.insert("address".to_string(), serde_json::Value::String(wallet_address.clone()));
+    test_results.insert("test_timestamp".to_string(), serde_json::Value::String(chrono::Utc::now().to_rfc3339()));
+    
+    // Test with comprehensive error handling
+    match aave_adapter.fetch_positions(eth_address).await {
+        Ok(positions) => {
+            tracing::info!("✅ Enhanced Aave adapter succeeded with {} positions", positions.len());
+            
+            test_results.insert("success".to_string(), serde_json::Value::Bool(true));
+            test_results.insert("position_count".to_string(), serde_json::Value::Number(positions.len().into()));
+            test_results.insert("error".to_string(), serde_json::Value::Null);
+            
+            // Convert positions to response format
+            let position_responses: Vec<PositionResponse> = positions.into_iter().map(|pos| {
+                let risk_score = if pos.value_usd > 1_000_000.0 { 25 } else { 50 }; // Simplified risk
+                
+                PositionResponse {
+                    id: uuid::Uuid::new_v4(),
+                    user_id: uuid::Uuid::new_v4(),
+                    protocol: pos.protocol,
+                    pool_address: pos.pair.clone(),
+                    chain_id: 1,
+                    token0_address: pos.metadata.get("asset_address")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0x0000000000000000000000000000000000000000").to_string(),
+                    token1_address: "0x0000000000000000000000000000000000000000".to_string(), // Aave is single-asset
+                    position_type: pos.position_type,
+                    entry_price: BigDecimal::from(0), // Historical data needed
+                    current_price: Some(BigDecimal::from(0)),
+                    amount_usd: BigDecimal::try_from(pos.value_usd).unwrap_or_default(),
+                    liquidity_amount: pos.metadata.get("atoken_balance")
+                        .and_then(|v| v.as_str())
+                        .map(|s| BigDecimal::from_str(s).unwrap_or_default()),
+                    fee_tier: None, // Not applicable to Aave
+                    tick_lower: None,
+                    tick_upper: None,
+                    pnl_usd: Some(BigDecimal::try_from(pos.pnl_usd).unwrap_or_default()),
+                    fees_earned_usd: Some(BigDecimal::from(0)), // Would be interest earned
+                    impermanent_loss_usd: Some(BigDecimal::from(0)), // Not applicable to Aave
+                    risk_score: Some(risk_score),
+                    is_active: true,
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
+                }
+            }).collect();
+            
+            test_results.insert("positions".to_string(), serde_json::to_value(position_responses)?);
+        },
+        Err(e) => {
+            tracing::error!("❌ Enhanced Aave adapter failed: {}", e);
+            
+            test_results.insert("success".to_string(), serde_json::Value::Bool(false));
+            test_results.insert("position_count".to_string(), serde_json::Value::Number(0.into()));
+            test_results.insert("error".to_string(), serde_json::Value::String(e.to_string()));
+            test_results.insert("positions".to_string(), serde_json::Value::Array(Vec::new()));
+        }
+    }
+    
+    Ok(Json(serde_json::Value::Object(test_results)))
 }
 
 /// Calculate real risk score for a position using comprehensive risk analysis
@@ -459,4 +660,6 @@ pub fn create_position_routes() -> Router<AppState> {
         .route("/positions/id/:position_id", get(get_position))
         .route("/positions/id/:position_id", put(update_position))
         .route("/positions/id/:position_id", delete(delete_position))
+        .route("/positions/test-aave/:address", get(test_aave_only))
+        .route("/positions/test-aave-enhanced/:address", get(test_aave_enhanced))
 }

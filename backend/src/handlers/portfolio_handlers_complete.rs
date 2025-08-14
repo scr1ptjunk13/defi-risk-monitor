@@ -263,6 +263,7 @@ pub async fn get_protocol_exposure(
 // Create router
 pub fn create_portfolio_routes() -> Router<AppState> {
     Router::new()
+        .route("/portfolio/summary", get(crate::handlers::portfolio_handlers::get_portfolio))
         .route("/portfolio/performance", get(get_portfolio_performance))
         .route("/portfolio/pnl-history", get(get_pnl_history))
         .route("/portfolio/asset-allocation", get(get_asset_allocation))

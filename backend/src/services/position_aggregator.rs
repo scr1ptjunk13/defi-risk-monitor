@@ -43,10 +43,15 @@ impl PositionAggregator {
         let mut adapters: Vec<Box<dyn DeFiAdapter>> = Vec::new();
         
         // Uniswap V3 (fully implemented)
+        tracing::info!("Initializing Uniswap V3 adapter");
         adapters.push(Box::new(UniswapV3Adapter::new(client.clone())?));
         
+        // Aave V3 (now implemented)
+        tracing::info!("Initializing Aave V3 adapter");
+        adapters.push(Box::new(AaveV3Adapter::new(client.clone())?));
+        tracing::info!("Successfully initialized Aave V3 adapter");
+        
         // Other protocols (stubs for now, will implement next)
-        adapters.push(Box::new(AaveV3Adapter::new(client.clone())));
         adapters.push(Box::new(CompoundV3Adapter::new(client.clone())));
         adapters.push(Box::new(CurveAdapter::new(client.clone())));
         adapters.push(Box::new(LidoAdapter::new(client.clone())));
@@ -69,10 +74,16 @@ impl PositionAggregator {
         let mut protocol_counts = HashMap::new();
         
         // Fetch positions from each protocol adapter
+        tracing::info!(
+            user_address = %address,
+            adapter_count = self.adapters.len(),
+            "Starting position fetch across all adapters"
+        );
+        
         for adapter in &self.adapters {
             let protocol_name = adapter.protocol_name();
             
-            tracing::debug!(
+            tracing::info!(
                 user_address = %address,
                 protocol = protocol_name,
                 "Fetching positions from protocol"

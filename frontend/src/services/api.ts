@@ -40,6 +40,72 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+// Risk Monitor specific interfaces
+export interface PortfolioRiskMetrics {
+  overall_risk: number;
+  liquidity_risk: number;
+  volatility_risk: number;
+  mev_risk: number;
+  protocol_risk: number;
+  timestamp: string;
+}
+
+export interface LiveRiskAlert {
+  id: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  alert_type: string;
+  message: string;
+  position_id?: string;
+  protocol?: string;
+  timestamp: string;
+  acknowledged: boolean;
+}
+
+export interface RiskFactors {
+  liquidity: number;
+  volatility: number;
+  mev: number;
+  protocol: number;
+}
+
+export interface PositionRiskHeatmap {
+  id: string;
+  protocol: string;
+  pair: string;
+  risk_score: number;
+  risk_factors: RiskFactors;
+  alerts: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
+// Advanced Analytics interfaces
+export interface PortfolioAnalytics {
+  total_return_usd: string;
+  total_return_percentage: string;
+  volatility: string;
+  sharpe_ratio: string;
+  max_drawdown: string;
+  alpha?: string;
+  beta?: string;
+}
+
+export interface CorrelationMatrix {
+  [asset: string]: { [asset: string]: number };
+}
+
+export interface RiskDecomposition {
+  systematic_risk: number;
+  idiosyncratic_risk: number;
+  concentration_risk: number;
+  liquidity_risk: number;
+}
+
+export interface StressTestResult {
+  scenario: string;
+  impact: number;
+  probability: number;
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -84,7 +150,7 @@ class ApiService {
 
   // Get portfolio summary with risk metrics
   async getPortfolioSummary(walletAddress: string): Promise<ApiResponse<PortfolioSummary>> {
-    return this.request<PortfolioSummary>(`/api/v1/portfolio/${walletAddress}/summary`);
+    return this.request<PortfolioSummary>(`/api/v1/portfolio/summary?user_address=${encodeURIComponent(walletAddress)}`);
   }
 
   // Health check endpoint
@@ -102,6 +168,36 @@ class ApiService {
   // Check if address is ENS name
   isENSName(address: string): boolean {
     return address.endsWith('.eth');
+  }
+
+  // Risk Monitor API endpoints
+  async getPortfolioRiskMetrics(address: string): Promise<ApiResponse<PortfolioRiskMetrics>> {
+    return this.request<PortfolioRiskMetrics>(`/api/v1/portfolio-risk-metrics?address=${encodeURIComponent(address)}`);
+  }
+
+  async getLiveRiskAlerts(address: string): Promise<ApiResponse<LiveRiskAlert[]>> {
+    return this.request<LiveRiskAlert[]>(`/api/v1/live-alerts?address=${encodeURIComponent(address)}`);
+  }
+
+  async getPositionRiskHeatmap(address: string): Promise<ApiResponse<PositionRiskHeatmap[]>> {
+    return this.request<PositionRiskHeatmap[]>(`/api/v1/position-risk-heatmap?address=${address}`);
+  }
+
+  // Advanced Analytics API methods
+  async getPortfolioAnalytics(address: string, period: string = '30d'): Promise<ApiResponse<PortfolioAnalytics>> {
+    return this.request<PortfolioAnalytics>(`/api/v1/analytics/portfolio-performance?user_address=${address}&period=${period}`);
+  }
+
+  async getCorrelationMatrix(address: string): Promise<ApiResponse<CorrelationMatrix>> {
+    return this.request<CorrelationMatrix>(`/api/v1/analytics/correlation-matrix?user_address=${address}`);
+  }
+
+  async getRiskDecomposition(address: string): Promise<ApiResponse<RiskDecomposition>> {
+    return this.request<RiskDecomposition>(`/api/v1/analytics/risk-decomposition?user_address=${address}`);
+  }
+
+  async getStressTestResults(address: string): Promise<ApiResponse<StressTestResult[]>> {
+    return this.request<StressTestResult[]>(`/api/v1/analytics/stress-test?user_address=${address}`);
   }
 }
 

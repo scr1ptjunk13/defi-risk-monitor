@@ -16,10 +16,14 @@ use crate::{
         mev_risk_service::MevRiskService,
         cross_chain_risk_service::CrossChainRiskService,
         protocol_risk_service::ProtocolRiskService,
+        portfolio_service::{PortfolioService, PositionSummary},
+        price_validation::PriceValidationService,
     },
+    models::{RiskAssessment, Position},
     error::AppError,
     AppState,
 };
+use num_traits::Zero;
 
 // Request/Response DTOs
 #[derive(Debug, Deserialize)]
@@ -182,6 +186,48 @@ pub struct GetRiskCorrelationQuery {
     pub risk_type: Option<String>,
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,
+}
+
+// Risk Monitor Frontend Integration Data Structures
+#[derive(Debug, Serialize)]
+pub struct PortfolioRiskMetrics {
+    pub overall_risk: i32,
+    pub liquidity_risk: i32,
+    pub volatility_risk: i32,
+    pub mev_risk: i32,
+    pub protocol_risk: i32,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LiveRiskAlert {
+    pub id: String,
+    pub severity: String,
+    pub alert_type: String,
+    pub message: String,
+    pub position_id: Option<String>,
+    pub protocol: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub acknowledged: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PositionRiskHeatmap {
+    pub id: String,
+    pub protocol: String,
+    pub pair: String,
+    pub risk_score: i32,
+    pub risk_factors: RiskFactors,
+    pub alerts: i32,
+    pub trend: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RiskFactors {
+    pub liquidity: i32,
+    pub volatility: i32,
+    pub mev: i32,
+    pub protocol: i32,
 }
 
 // Handler functions
@@ -610,6 +656,201 @@ pub async fn get_protocol_risk(
     Ok(Json(response))
 }
 
+// New Risk Monitor specific endpoints
+pub async fn get_portfolio_risk_metrics(
+    State(state): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<PortfolioRiskMetrics>, AppError> {
+    let address = params.get("address")
+        .ok_or_else(|| AppError::ValidationError("Missing address parameter".to_string()))?;
+    
+    // For now, return mock data that matches frontend expectations
+    // TODO: Replace with real risk calculations from services
+    let metrics = PortfolioRiskMetrics {
+        overall_risk: 75,
+        liquidity_risk: 65,
+        volatility_risk: 72,
+        mev_risk: 82,
+        protocol_risk: 45,
+        timestamp: chrono::Utc::now(),
+    };
+    
+    Ok(Json(metrics))
+}
+
+pub async fn get_live_risk_alerts(
+    State(state): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<LiveRiskAlert>>, AppError> {
+    let address = params.get("address")
+        .ok_or_else(|| AppError::ValidationError("Missing address parameter".to_string()))?;
+    
+    // For now, return mock alerts that match frontend expectations
+    // TODO: Replace with real alerts from monitoring service
+    let alerts = vec![
+        LiveRiskAlert {
+            id: "alert_1".to_string(),
+            severity: "high".to_string(),
+            alert_type: "MEV Risk".to_string(),
+            message: "High MEV vulnerability detected in ETH/USDC pool".to_string(),
+            position_id: Some("pos_1".to_string()),
+            protocol: Some("Uniswap V3".to_string()),
+            timestamp: chrono::Utc::now(),
+            acknowledged: false,
+        },
+        LiveRiskAlert {
+            id: "alert_2".to_string(),
+            severity: "medium".to_string(),
+            alert_type: "Protocol Risk".to_string(),
+            message: "Protocol upgrade scheduled".to_string(),
+            position_id: Some("pos_2".to_string()),
+            protocol: Some("Uniswap V3".to_string()),
+            timestamp: chrono::Utc::now() - chrono::Duration::minutes(5),
+            acknowledged: false,
+        },
+    ];
+    
+    Ok(Json(alerts))
+}
+
+pub async fn get_position_risk_heatmap(
+    State(state): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<PositionRiskHeatmap>>, AppError> {
+    let address = params.get("address")
+        .ok_or_else(|| AppError::ValidationError("Missing address parameter".to_string()))?;
+    
+    // Fetch user's actual positions from the database
+    let price_validation_service = PriceValidationService::new(state.db_pool.clone()).await
+        .map_err(|e| AppError::InternalError(format!("Failed to create price validation service: {}", e)))?;
+    let mut portfolio_service = PortfolioService::new(state.db_pool.clone(), price_validation_service).await;
+    
+    // Get user positions (this will resolve ENS if needed)
+    let positions_result = portfolio_service.get_portfolio_summary(address).await;
+    
+    let portfolio_summary = match positions_result {
+        Ok(summary) => summary,
+        Err(_) => {
+            // If we can't fetch positions, return empty array instead of error
+            return Ok(Json(vec![]));
+        }
+    };
+    
+    // Calculate risk scores for each position
+    let mut heatmap = Vec::new();
+    
+    for position in portfolio_summary.positions {
+        // Calculate risk factors based on position data
+        let liquidity_risk = calculate_liquidity_risk(&position).await;
+        let volatility_risk = calculate_volatility_risk(&position);
+        let mev_risk = calculate_mev_risk(&position);
+        let protocol_risk = calculate_protocol_risk(&position.protocol);
+        
+        // Calculate overall risk as weighted average
+        let overall_risk = ((liquidity_risk * 30 + volatility_risk * 25 + mev_risk * 25 + protocol_risk * 20) / 100) as i32;
+        
+        // Determine trend from recent PnL
+        let trend = if position.pnl_usd > BigDecimal::zero() {
+            "up".to_string()
+        } else if position.pnl_usd < BigDecimal::zero() {
+            "down".to_string()
+        } else {
+            "neutral".to_string()
+        };
+        
+        // For position summary, we'll use a simplified pair format
+        // In a real implementation, you'd resolve token addresses from the pool
+        let pair = format!("{}/TOKEN", position.protocol.to_uppercase());
+        
+        let position_risk = PositionRiskHeatmap {
+            id: position.id.clone(),
+            protocol: position.protocol.clone(),
+            pair,
+            risk_score: overall_risk,
+            risk_factors: RiskFactors {
+                liquidity: liquidity_risk,
+                volatility: volatility_risk,
+                mev: mev_risk,
+                protocol: protocol_risk,
+            },
+            alerts: 0, // TODO: Count actual alerts for this position
+            trend,
+        };
+        
+        heatmap.push(position_risk);
+    }
+    
+    Ok(Json(heatmap))
+}
+
+// Helper functions for risk calculations
+async fn calculate_liquidity_risk(position: &PositionSummary) -> i32 {
+    // Calculate liquidity risk based on position value
+    let position_value = position.current_value_usd.to_string().parse::<f64>().unwrap_or(0.0);
+    
+    if position_value > 100000.0 {
+        85 // High risk for large positions
+    } else if position_value > 10000.0 {
+        65 // Medium risk
+    } else {
+        35 // Low risk for small positions
+    }
+}
+
+fn calculate_volatility_risk(position: &PositionSummary) -> i32 {
+    // Calculate volatility risk based on protocol type
+    let protocol = position.protocol.to_lowercase();
+    
+    match protocol.as_str() {
+        "uniswap v3" => 70, // Medium-high volatility
+        "aave" => 45,      // Lower volatility for lending
+        "curve" => 40,     // Lower volatility for stable pairs
+        _ => 60,           // Default medium volatility
+    }
+}
+
+fn calculate_mev_risk(position: &PositionSummary) -> i32 {
+    // Calculate MEV risk based on protocol type
+    let protocol = position.protocol.to_lowercase();
+    
+    match protocol.as_str() {
+        "uniswap v3" => 80, // High MEV risk for DEX
+        "aave" => 25,      // Lower MEV risk for lending
+        "curve" => 35,     // Medium MEV risk
+        _ => 50,           // Default medium MEV risk
+    }
+}
+
+fn calculate_protocol_risk(protocol: &str) -> i32 {
+    // Calculate protocol risk based on maturity, TVL, and audit status
+    let protocol_lower = protocol.to_lowercase();
+    
+    match protocol_lower.as_str() {
+        "uniswap v3" => 30, // Low protocol risk - well established
+        "aave" => 25,      // Very low protocol risk
+        "curve" => 35,     // Low protocol risk
+        "compound" => 30,  // Low protocol risk
+        "lido" => 40,      // Medium protocol risk
+        _ => 60,           // Higher risk for unknown protocols
+    }
+}
+
+async fn get_token_symbol(token_address: &str) -> Result<String, AppError> {
+    // Simple token symbol resolution - in production this would query the blockchain
+    // For now, return common token symbols based on known addresses
+    let address_lower = token_address.to_lowercase();
+    
+    let symbol = match address_lower.as_str() {
+        "0xa0b86a33e6441e6c4a9b0b0c4e6c4c6c4c6c4c6c" => "USDC",
+        "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2" => "WETH",
+        "0x6b175474e89094c44da98b954eedeac495271d0f" => "DAI",
+        "0xdac17f958d2ee523a2206206994597c13d831ec7" => "USDT",
+        _ => "TOKEN", // Default for unknown tokens
+    };
+    
+    Ok(symbol.to_string())
+}
+
 // Create router
 pub fn create_risk_routes() -> Router<AppState> {
     Router::new()
@@ -629,4 +870,9 @@ pub fn create_risk_routes() -> Router<AppState> {
         .route("/mev-risk/:pool_address/:chain_id", get(get_mev_risk))
         .route("/cross-chain-risk/:user_id", get(get_cross_chain_risk))
         .route("/protocol-risk/:protocol_name", get(get_protocol_risk))
+        
+        // Risk Monitor Frontend Integration Endpoints
+        .route("/portfolio-risk-metrics", get(get_portfolio_risk_metrics))
+        .route("/live-alerts", get(get_live_risk_alerts))
+        .route("/position-risk-heatmap", get(get_position_risk_heatmap))
 }
