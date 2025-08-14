@@ -236,7 +236,7 @@ impl Default for ProtocolEventMonitor {
                     "uniswap".to_string(),
                     "curve".to_string(),
                     "aave".to_string(),
-                    "compound".to_string(),
+
                 ],
                 snapshot_spaces: vec![
                     "uniswap".to_string(),

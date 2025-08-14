@@ -31,7 +31,7 @@ impl Default for InputValidator {
         allowed_protocols.insert("curve".to_string());
         allowed_protocols.insert("balancer".to_string());
         allowed_protocols.insert("aave".to_string());
-        allowed_protocols.insert("compound".to_string());
+
 
         let mut allowed_chain_ids = HashSet::new();
         allowed_chain_ids.insert(1);    // Ethereum

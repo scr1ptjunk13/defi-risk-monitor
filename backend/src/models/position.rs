@@ -206,7 +206,7 @@ impl Position {
         match self.protocol.to_lowercase().as_str() {
             "uniswap_v3" | "uniswap" => "concentrated_liquidity".to_string(),
             "uniswap_v2" | "sushiswap" => "liquidity_pool".to_string(),
-            "aave" | "compound" => "lending".to_string(),
+            "aave" => "lending".to_string(),
             "yearn" | "curve" => "yield_farming".to_string(),
             _ => "liquidity".to_string(), // Default fallback
         }

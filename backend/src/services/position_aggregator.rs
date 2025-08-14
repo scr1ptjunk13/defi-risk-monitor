@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 use crate::blockchain::EthereumClient;
 use crate::adapters::{
     DeFiAdapter, Position, PortfolioSummary, AdapterError,
-    UniswapV3Adapter, AaveV3Adapter, CompoundV3Adapter, CurveAdapter, LidoAdapter
+    UniswapV3Adapter, UniswapV2Adapter, AaveV3Adapter, CurveAdapter, LidoAdapter, RocketPoolAdapter
 };
 use crate::services::price_service::{PriceService, PriceError};
 
@@ -51,8 +51,8 @@ impl PositionAggregator {
         adapters.push(Box::new(AaveV3Adapter::new(client.clone())?));
         tracing::info!("Successfully initialized Aave V3 adapter");
         
+
         // Other protocols (stubs for now, will implement next)
-        adapters.push(Box::new(CompoundV3Adapter::new(client.clone())));
         adapters.push(Box::new(CurveAdapter::new(client.clone())));
         adapters.push(Box::new(LidoAdapter::new(client.clone())));
         

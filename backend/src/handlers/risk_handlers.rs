@@ -829,7 +829,7 @@ fn calculate_protocol_risk(protocol: &str) -> i32 {
         "uniswap v3" => 30, // Low protocol risk - well established
         "aave" => 25,      // Very low protocol risk
         "curve" => 35,     // Low protocol risk
-        "compound" => 30,  // Low protocol risk
+
         "lido" => 40,      // Medium protocol risk
         _ => 60,           // Higher risk for unknown protocols
     }

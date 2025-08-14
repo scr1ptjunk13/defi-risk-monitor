@@ -106,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             BigDecimal::from_str("10.00").unwrap(),       // 10% max single pool
             BigDecimal::from_str("10000.00").unwrap(),    // $10k min liquidity
             BigDecimal::from_str("0.70").unwrap(),        // 0.7 max risk score
-            serde_json::json!(["uniswap-v3", "aave", "compound"]),
+            serde_json::json!(["uniswap-v3", "aave"]),
             serde_json::json!([]),
             serde_json::json!(["ethereum", "polygon"]),
             BigDecimal::from_str("2.00").unwrap(),        // 2% max slippage

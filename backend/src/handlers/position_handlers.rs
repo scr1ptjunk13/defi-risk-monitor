@@ -12,6 +12,7 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use crate::{
     services::position_service::PositionService,
+    services::position_aggregator::PositionAggregator,
     services::risk_calculator::RiskCalculator,
     adapters::traits::DeFiAdapter,
     adapters::aave_v3::AaveV3Adapter,
@@ -328,7 +329,7 @@ pub async fn get_positions_by_address(
     Path(address): Path<String>,
 ) -> Result<Json<Vec<PositionResponse>>, AppError> {
     use alloy::primitives::Address;
-    use crate::services::position_aggregator::PositionAggregator;
+    use crate::adapters::{AaveV3Adapter, DeFiAdapter, Position, AdapterError};
 
     tracing::info!("Fetching positions from all protocols for address: {}", address);
     
@@ -602,6 +603,10 @@ pub async fn test_aave_enhanced(
     Ok(Json(serde_json::Value::Object(test_results)))
 }
 
+
+
+
+
 /// Calculate real risk score for a position using comprehensive risk analysis
 async fn calculate_position_risk_score(
     position: &crate::adapters::traits::Position,
@@ -662,4 +667,5 @@ pub fn create_position_routes() -> Router<AppState> {
         .route("/positions/id/:position_id", delete(delete_position))
         .route("/positions/test-aave/:address", get(test_aave_only))
         .route("/positions/test-aave-enhanced/:address", get(test_aave_enhanced))
+
 }
