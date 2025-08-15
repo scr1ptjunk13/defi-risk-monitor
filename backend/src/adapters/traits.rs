@@ -16,6 +16,9 @@ pub enum AdapterError {
     
     #[error("RPC error: {0}")]
     RpcError(String),
+    
+    #[error("Calculation error: {0}")]
+    CalculationError(String),
 }
 
 /// Represents a DeFi position for any protocol

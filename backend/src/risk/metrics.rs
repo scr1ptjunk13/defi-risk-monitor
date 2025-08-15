@@ -7,6 +7,8 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProtocolRiskMetrics {
     Lido(LidoRiskMetrics),
+    RocketPool(RocketPoolRiskMetrics),
+    EtherFi(EtherFiRiskMetrics),
     UniswapV3(UniswapV3RiskMetrics),
     Aave(AaveRiskMetrics),
     MakerDAO(MakerDAORiskMetrics),
@@ -23,6 +25,8 @@ impl ProtocolRiskMetrics {
     pub fn overall_risk_score(&self) -> BigDecimal {
         match self {
             ProtocolRiskMetrics::Lido(metrics) => metrics.overall_risk_score.clone(),
+            ProtocolRiskMetrics::RocketPool(metrics) => metrics.overall_risk_score.clone(),
+            ProtocolRiskMetrics::EtherFi(metrics) => metrics.overall_risk_score.clone(),
             ProtocolRiskMetrics::UniswapV3(metrics) => metrics.overall_risk_score.clone(),
             ProtocolRiskMetrics::Aave(metrics) => metrics.overall_risk_score.clone(),
             ProtocolRiskMetrics::MakerDAO(metrics) => metrics.overall_risk_score.clone(),
@@ -39,6 +43,8 @@ impl ProtocolRiskMetrics {
     pub fn protocol_name(&self) -> &'static str {
         match self {
             ProtocolRiskMetrics::Lido(_) => "lido",
+            ProtocolRiskMetrics::RocketPool(_) => "rocket_pool",
+            ProtocolRiskMetrics::EtherFi(_) => "ether_fi",
             ProtocolRiskMetrics::UniswapV3(_) => "uniswap_v3",
             ProtocolRiskMetrics::Aave(_) => "aave",
             ProtocolRiskMetrics::MakerDAO(_) => "makerdao",
@@ -85,6 +91,59 @@ pub struct LidoRiskMetrics {
     pub slashed_validators: Option<u64>,
     pub total_staked_eth: Option<BigDecimal>,
     pub apy: Option<BigDecimal>,
+}
+
+/// Rocket Pool-specific risk metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RocketPoolRiskMetrics {
+    pub validator_slashing_risk: BigDecimal,
+    pub reth_depeg_risk: BigDecimal,
+    pub withdrawal_queue_risk: BigDecimal,
+    pub protocol_governance_risk: BigDecimal,
+    pub validator_performance_risk: BigDecimal,
+    pub liquidity_risk: BigDecimal,
+    pub smart_contract_risk: BigDecimal,
+    pub overall_risk_score: BigDecimal,
+    
+    // Additional context data
+    pub peg_price: BigDecimal,
+    pub peg_deviation_percent: BigDecimal,
+    pub protocol_tvl_usd: BigDecimal,
+    pub validator_count_total: u64,
+    pub withdrawal_queue_time_days: BigDecimal,
+    pub current_apy: BigDecimal,
+    
+    // Historical data for trend analysis
+    pub historical_30d_avg: BigDecimal,
+    pub historical_7d_avg: BigDecimal,
+}
+
+/// Ether.fi-specific risk metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EtherFiRiskMetrics {
+    pub validator_slashing_risk: BigDecimal,
+    pub eeth_depeg_risk: BigDecimal,
+    pub withdrawal_queue_risk: BigDecimal,
+    pub protocol_governance_risk: BigDecimal,
+    pub validator_performance_risk: BigDecimal,
+    pub liquidity_risk: BigDecimal,
+    pub smart_contract_risk: BigDecimal,
+    pub restaking_exposure_risk: BigDecimal, // Unique to Ether.fi
+    pub overall_risk_score: BigDecimal,
+    
+    // Additional context data
+    pub peg_price: BigDecimal,
+    pub peg_deviation_percent: BigDecimal,
+    pub protocol_tvl_usd: BigDecimal,
+    pub validator_count_total: u64,
+    pub withdrawal_queue_time_days: BigDecimal,
+    pub current_apy: BigDecimal,
+    pub restaking_tvl_usd: BigDecimal, // EigenLayer restaking TVL
+    pub active_avs_count: u64, // Active AVS (Actively Validated Services)
+    
+    // Historical data for trend analysis
+    pub historical_30d_avg: BigDecimal,
+    pub historical_7d_avg: BigDecimal,
 }
 
 /// Uniswap V3 specific risk metrics

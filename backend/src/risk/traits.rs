@@ -1,6 +1,6 @@
 // Protocol Risk Calculator Traits and Core Interfaces
 use async_trait::async_trait;
-use crate::models::Position;
+use crate::models::position::Position;
 use crate::risk::{RiskError, ProtocolRiskMetrics};
 
 /// Core trait that all protocol-specific risk calculators must implement

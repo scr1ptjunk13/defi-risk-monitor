@@ -5,6 +5,7 @@ use alloy::{
 use async_trait::async_trait;
 use crate::adapters::traits::{AdapterError, Position, DeFiAdapter};
 use crate::blockchain::ethereum_client::EthereumClient;
+use crate::risk::calculators::yearnfinance::{YearnFinanceRiskCalculator, YearnRiskData};
 use crate::services::IERC20;
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -276,6 +277,8 @@ pub struct YearnAdapter {
     http_client: reqwest::Client,
     // Yearn registry contract
     registry_address: Option<Address>,
+    // Risk calculator
+    risk_calculator: YearnFinanceRiskCalculator,
 }
 
 impl YearnAdapter {
@@ -317,8 +320,9 @@ impl YearnAdapter {
                 .timeout(Duration::from_secs(45))
                 .user_agent("DeFi-Adapter/1.0")
                 .build()
-                .map_err(|e| AdapterError::NetworkError(format!("Failed to create HTTP client: {}", e)))?,
+                .map_err(|e| AdapterError::RpcError(format!("Failed to create HTTP client: {}", e)))?,
             registry_address,
+            risk_calculator: YearnFinanceRiskCalculator::new(),
         })
     }
     
@@ -389,17 +393,17 @@ impl YearnAdapter {
         
         let response = timeout(Duration::from_secs(45), self.http_client.get(&url).send())
             .await
-            .map_err(|_| AdapterError::NetworkError("Request timeout".to_string()))?
-            .map_err(|e| AdapterError::NetworkError(format!("HTTP request failed: {}", e)))?;
+            .map_err(|_| AdapterError::RpcError("Request timeout".to_string()))?
+            .map_err(|e| AdapterError::RpcError(format!("HTTP request failed: {}", e)))?;
         
         if !response.status().is_success() {
-            return Err(AdapterError::NetworkError(format!("HTTP error: {}", response.status())));
+            return Err(AdapterError::RpcError(format!("HTTP error: {}", response.status())));
         }
         
         let mut vaults: Vec<YearnVault> = response
             .json()
             .await
-            .map_err(|e| AdapterError::DataError(format!("JSON parse error: {}", e)))?;
+            .map_err(|e| AdapterError::ContractError(format!("JSON parse error: {}", e)))?;
         
         // Filter active vaults and correct chain
         vaults.retain(|v| {
@@ -430,8 +434,8 @@ impl YearnAdapter {
         
         let response = timeout(Duration::from_secs(30), self.http_client.get(&url).send())
             .await
-            .map_err(|_| AdapterError::NetworkError("Request timeout".to_string()))?
-            .map_err(|e| AdapterError::NetworkError(format!("HTTP request failed: {}", e)))?;
+            .map_err(|_| AdapterError::RpcError("Request timeout".to_string()))?
+            .map_err(|e| AdapterError::RpcError(format!("HTTP request failed: {}", e)))?;
         
         if !response.status().is_success() {
             tracing::warn!("Failed to fetch Yearn earnings: {}", response.status());
@@ -443,7 +447,7 @@ impl YearnAdapter {
             .await
             .map_err(|e| {
                 tracing::warn!("Failed to parse Yearn earnings: {}", e);
-                AdapterError::DataError(format!("Earnings JSON parse error: {}", e))
+                AdapterError::ContractError(format!("Earnings JSON parse error: {}", e))
             })?;
         
         tracing::info!(earnings_count = earnings.vault_earnings.len(), "Fetched Yearn vault earnings");
@@ -467,14 +471,15 @@ impl YearnAdapter {
             if let Ok(vault_address) = Address::from_str(&vault.address) {
                 match self.get_vault_position(address, vault, vault_address).await {
                     Ok(Some(position)) => {
-                        positions.push(position);
+                        let position_clone = position.clone();
                         tracing::info!(
                             vault_symbol = %vault.symbol,
                             vault_name = %vault.name,
-                            balance = %position.balance,
+                            balance = %position_clone.balance,
                             version = %vault.version,
                             "Found Yearn vault position"
                         );
+                        positions.push(position_clone);
                     }
                     Ok(None) => {
                         // No position in this vault
@@ -523,10 +528,10 @@ impl YearnAdapter {
             .map_err(|e| AdapterError::ContractError(format!("Failed to get price per share for {}: {}", vault.symbol, e)))?
             ._0;
         
-        let price_per_share = price_per_share_raw.to::<f64>() / 10f64.powi(vault.decimals as i32);
+        let price_per_share = price_per_share_raw.try_into().unwrap_or(0u64) as f64 / 10f64.powi(vault.decimals as i32);
         
         // Calculate underlying token balance
-        let shares_f64 = shares.to::<f64>() / 10f64.powi(vault.decimals as i32);
+        let shares_f64 = shares.try_into().unwrap_or(0u64) as f64 / 10f64.powi(vault.decimals as i32);
         let underlying_balance = shares_f64 * price_per_share;
         let underlying_balance_raw = U256::from((underlying_balance * 10f64.powi(vault.token.decimals as i32)) as u64);
         
@@ -559,7 +564,7 @@ impl YearnAdapter {
     
     /// Calculate USD value of position with earnings
     async fn calculate_position_value(&self, position: &YearnPosition, cached_data: &CachedYearnData) -> (f64, f64, f64) {
-        let balance_f64 = position.balance.to::<f64>() / 10f64.powi(position.token.decimals as i32);
+        let balance_f64 = position.balance.try_into().unwrap_or(0u64) as f64 / 10f64.powi(position.token.decimals as i32);
         
         // Get token price (try multiple sources)
         let mut token_price = 0.0f64;
@@ -578,7 +583,7 @@ impl YearnAdapter {
         // 2. Fallback: estimate from vault TVL
         if token_price == 0.0 && position.tvl.totalAssetsUSD > 0.0 {
             let total_assets_f64 = if let Ok(total_assets_raw) = U256::from_str(&position.tvl.totalAssets) {
-                total_assets_raw.to::<f64>() / 10f64.powi(position.token.decimals as i32)
+                total_assets_raw.try_into().unwrap_or(0u64) as f64 / 10f64.powi(position.token.decimals as i32)
             } else {
                 position.tvl.tvl
             };
@@ -638,123 +643,70 @@ impl YearnAdapter {
             }
         }
         
-        Err(AdapterError::NetworkError("Failed to get token price".to_string()))
+        Err(AdapterError::RpcError("Failed to get token price from CoinGecko".to_string()))
     }
     
-    /// Calculate comprehensive risk score for Yearn positions
-    fn calculate_yearn_risk_score(&self, position: &YearnPosition) -> u8 {
-        let mut risk_score = 20u8; // Base yield farming risk (lower than other protocols due to Yearn's reputation)
+    /// Calculate comprehensive risk score for Yearn positions using dedicated risk calculator
+    fn calculate_yearn_risk_score(&self, position: &YearnPosition) -> (f64, String) {
+        // Convert position data to risk calculator format
+        let risk_data = YearnRiskData {
+            vault_version: position.vault_version.clone(),
+            vault_type: position.vault_type.clone(),
+            category: position.category.clone(),
+            net_apy: position.net_apy,
+            gross_apr: position.gross_apr,
+            strategy_count: position.strategies.len(),
+            strategy_types: position.strategies.iter()
+                .map(|s| s.name.clone())
+                .collect(),
+            underlying_protocols: position.strategies.iter()
+                .flat_map(|s| s.details.protocols.clone())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect(),
+            performance_fee: position.fees.performance,
+            management_fee: position.fees.management,
+            withdrawal_fee: position.fees.withdrawal,
+            chain_id: position.chain_id,
+            tvl_usd: position.tvl.tvl,
+            is_migrable: position.is_migrable,
+            harvest_frequency_days: 2, // Default harvest frequency
+            withdrawal_liquidity_usd: position.tvl.tvl * 0.1, // Estimate 10% withdrawal liquidity
+            is_v3: position.vault_version.starts_with("0.3") || position.vault_version.starts_with("0.4"),
+        };
         
-        // Version risk adjustment
-        match position.vault_version.as_str() {
-            v if v.starts_with("0.3") || v.starts_with("0.4") => risk_score = risk_score.saturating_sub(5), // Latest versions
-            v if v.starts_with("0.2") => {}, // No adjustment for v2
-            _ => risk_score += 10, // Older or unknown versions
-        }
+        let (risk_score, _confidence, explanation) = self.risk_calculator.calculate_risk_score(&risk_data);
         
-        // Vault type risk adjustment
-        match position.vault_type.to_lowercase().as_str() {
-            "automated" => risk_score = risk_score.saturating_sub(3), // Automated vaults are generally safer
-            "experimental" => risk_score += 20, // Experimental vaults are high risk
-            _ => {} // No adjustment
-        }
-        
-        // Category risk adjustment
-        match position.category.to_lowercase().as_str() {
-            "stablecoin" => risk_score = risk_score.saturating_sub(8), // Stablecoins are safer
-            "volatile" => risk_score += 5, // Volatile assets
-            "curve" => risk_score = risk_score.saturating_sub(3), // Curve strategies are well-tested
-            "balancer" => risk_score = risk_score.saturating_sub(2), // Balancer strategies
-            _ => {}
-        }
-        
-        // APY risk adjustment
-        if position.net_apy > 100.0 {
-            risk_score += 20; // Very high APY is suspicious
-        } else if position.net_apy > 50.0 {
-            risk_score += 12; // High APY
-        } else if position.net_apy > 25.0 {
-            risk_score += 6; // Moderate APY
-        } else if position.net_apy < 2.0 {
-            risk_score += 8; // Very low APY might indicate issues
-        }
-        
-        // Strategy diversification (multiple strategies reduce risk)
-        let strategy_count = position.strategies.len();
-        if strategy_count > 3 {
-            risk_score = risk_score.saturating_sub(5); // Well diversified
-        } else if strategy_count > 1 {
-            risk_score = risk_score.saturating_sub(2); // Some diversification
-        } else if strategy_count == 0 {
-            risk_score += 10; // No strategy info is concerning
-        }
-        
-        // Fee risk (very high fees might indicate unsustainable model)
-        if position.fees.performance > 30.0 {
-            risk_score += 8; // Very high performance fee
-        } else if position.fees.performance > 20.0 {
-            risk_score += 4; // High performance fee
-        }
-        
-        if position.fees.management > 5.0 {
-            risk_score += 5; // High management fee
-        }
-        
-        // Chain risk
-        match position.chain_id {
-            1 => risk_score = risk_score.saturating_sub(3), // Ethereum mainnet is most secure
-            250 => risk_score += 5, // Fantom has some additional risks
-            42161 => risk_score += 2, // Arbitrum
-            10 => risk_score += 2, // Optimism
-            _ => risk_score += 8, // Unknown chains
-        }
-        
-        // TVL risk (higher TVL generally indicates more stability)
-        if position.tvl.tvl > 100_000_000.0 {
-            risk_score = risk_score.saturating_sub(5); // Very high TVL
-        } else if position.tvl.tvl > 10_000_000.0 {
-            risk_score = risk_score.saturating_sub(3); // High TVL
-        } else if position.tvl.tvl < 1_000_000.0 {
-            risk_score += 8; // Low TVL
-        }
-        
-        // Migration available (indicates vault might be deprecated)
-        if position.is_migrable {
-            risk_score += 12; // Vaults needing migration have higher risk
-        }
-        
-        risk_score.min(95) // Cap at 95
+        (risk_score, explanation.explanation)
     }
-    
-/// Check if address is a Yearn vault
-async fn is_yearn_vault(&self, vault_address: Address) -> Result<bool, AdapterError> {
-    if let Some(registry_address) = self.registry_address {
-        let registry = IYearnRegistry::new(registry_address, self.client.provider());
-        
-        match registry.isRegistered(vault_address).call().await {
-            Ok(result) => Ok(result._0),
-            Err(_) => {
-                // Fallback: check against cached vault list
-                let cached_data = self.fetch_all_vaults_data().await?;
-                Ok(cached_data.vault_map.contains_key(&vault_address.to_string().to_lowercase()))
-            }
-        }
-    } else {
-        // No registry for this chain, use API data
-        let cached_data = self.fetch_all_vaults_data().await?;
-        Ok(cached_data.vault_map.contains_key(&vault_address.to_string().to_lowercase()))
-    }
-}
 
-/// Get vault info from contract
-async fn get_vault_info(&self, vault_address: Address) -> Result<(String, String, u8), AdapterError> {
+    /// Check if address is a Yearn vault
+    async fn is_yearn_vault(&self, vault_address: Address) -> Result<bool, AdapterError> {
+        if let Some(registry_address) = self.registry_address {
+            let registry = IYearnRegistry::new(registry_address, self.client.provider());
+            
+            match registry.isRegistered(vault_address).call().await {
+                Ok(result) => Ok(result._0),
+                Err(_) => {
+                    // Fallback: check against cached vault list
+                    let cached_data = self.fetch_all_vaults_data().await?;
+                    Ok(cached_data.vault_map.contains_key(&vault_address.to_string().to_lowercase()))
+                }
+            }
+        } else {
+            // No registry for this chain, use API data
+            let cached_data = self.fetch_all_vaults_data().await?;
+            Ok(cached_data.vault_map.contains_key(&vault_address.to_string().to_lowercase()))
+        }
+    }
+
+    /// Get vault info from contract
+    async fn get_vault_info(&self, vault_address: Address) -> Result<(String, String, u8), AdapterError> {
     let vault_contract = IYearnVault::new(vault_address, self.client.provider());
     
-    let (name_result, symbol_result, decimals_result) = tokio::join!(
-        vault_contract.name().call(),
-        vault_contract.symbol().call(),
-        vault_contract.decimals().call()
-    );
+    let name_result = vault_contract.name().call().await;
+    let symbol_result = vault_contract.symbol().call().await;
+    let decimals_result = vault_contract.decimals().call().await;
     
     let name = name_result
         .map_err(|e| AdapterError::ContractError(format!("Failed to get vault name: {}", e)))?
@@ -767,24 +719,20 @@ async fn get_vault_info(&self, vault_address: Address) -> Result<(String, String
         ._0;
         
     Ok((name, symbol, decimals))
-}
+    }
 }
 
 #[async_trait]
 impl DeFiAdapter for YearnAdapter {
-fn name(&self) -> &'static str {
-    "Yearn Finance"
-}
+    fn protocol_name(&self) -> &'static str {
+        "Yearn Finance"
+    }
 
-fn supported_chains(&self) -> Vec<u64> {
-    vec![1, 250, 42161, 10, 137] // Ethereum, Fantom, Arbitrum, Optimism, Polygon
-}
-
-async fn get_positions(&self, address: Address) -> Result<Vec<Position>, AdapterError> {
+    async fn fetch_positions(&self, address: Address) -> Result<Vec<Position>, AdapterError> {
     tracing::info!(
         user_address = %address,
         chain_id = self.chain_id,
-        adapter = self.name(),
+        adapter = self.protocol_name(),
         "🚀 Starting Yearn Finance position discovery"
     );
     
@@ -814,8 +762,8 @@ async fn get_positions(&self, address: Address) -> Result<Vec<Position>, Adapter
         let (base_value_usd, earnings_usd, apy) = self.calculate_position_value(&yearn_pos, &cached_data).await;
         let total_value_usd = base_value_usd + earnings_usd;
         
-        // Calculate risk score
-        let risk_score = self.calculate_yearn_risk_score(&yearn_pos);
+        // Calculate risk score and explanation
+        let (risk_score, risk_explanation) = self.calculate_yearn_risk_score(&yearn_pos);
         
         // Build strategy descriptions
         let strategies_desc = if yearn_pos.strategies.is_empty() {
@@ -829,56 +777,43 @@ async fn get_positions(&self, address: Address) -> Result<Vec<Position>, Adapter
         };
         
         let position = Position {
-            protocol: self.name().to_string(),
+            id: format!("yearn_{}_{}", yearn_pos.vault_address, address),
+            protocol: self.protocol_name().to_string(),
             position_type: format!("Yearn {} Vault", yearn_pos.vault_type),
-            asset_symbol: yearn_pos.token.symbol.clone(),
-            asset_address: Some(Address::from_str(&yearn_pos.token.address)
-                .unwrap_or_else(|_| Address::ZERO)),
-            contract_address: yearn_pos.vault_address,
-            balance: yearn_pos.balance,
-            balance_usd: total_value_usd,
-            underlying_tokens: vec![(
-                yearn_pos.token.symbol.clone(),
-                Address::from_str(&yearn_pos.token.address).unwrap_or_else(|_| Address::ZERO),
-                yearn_pos.underlying_balance,
-            )],
+            pair: format!("{}/{}", yearn_pos.token.symbol, "USD"),
+            value_usd: total_value_usd,
+            pnl_usd: 0.0, // Would need historical data
+            pnl_percentage: 0.0,
+            risk_score: risk_score as u8,
             metadata: serde_json::json!({
                 "vault_name": yearn_pos.vault_name,
                 "vault_symbol": yearn_pos.vault_symbol,
-                "vault_version": yearn_pos.vault_version,
                 "vault_type": yearn_pos.vault_type,
-                "category": yearn_pos.category,
-                "shares": yearn_pos.shares.to_string(),
-                "price_per_share": yearn_pos.price_per_share,
-                "net_apy": yearn_pos.net_apy,
-                "gross_apr": yearn_pos.gross_apr,
-                "strategies": strategies_desc,
+                "vault_version": yearn_pos.vault_version,
+                "vault_address": yearn_pos.vault_address.to_string(),
+                "asset_symbol": yearn_pos.token.symbol,
+                "asset_address": yearn_pos.token.address,
+                "balance": yearn_pos.balance,
+                "apy": apy,
+                "tvl_usd": yearn_pos.tvl.totalAssetsUSD,
                 "strategy_count": yearn_pos.strategies.len(),
-                "fees": {
-                    "performance": yearn_pos.fees.performance,
-                    "management": yearn_pos.fees.management,
-                    "withdrawal": yearn_pos.fees.withdrawal
-                },
-                "tvl": {
-                    "total_assets_usd": yearn_pos.tvl.totalAssetsUSD,
-                    "tvl": yearn_pos.tvl.tvl
-                },
-                "earnings_usd": earnings_usd,
-                "base_value_usd": base_value_usd,
-                "is_migrable": yearn_pos.is_migrable,
+                "strategies": strategies_desc,
+                "is_endorsed": true, // Default for now
+                "is_emergency_shutdown": false, // Default for now
+                "management_fee": yearn_pos.fees.management,
+                "performance_fee": yearn_pos.fees.performance,
                 "migration_target": yearn_pos.migration_target,
                 "chain_id": yearn_pos.chain_id,
                 "risk_score": risk_score,
-                "risk_level": match risk_score {
+                "risk_level": match risk_score as u8 {
                     0..=20 => "Very Low",
                     21..=35 => "Low",
                     36..=50 => "Medium",
                     51..=70 => "High",
-                    _ => "Very High"
+                    _ => "Critical"
                 }
             }),
-            apy: Some(apy),
-            last_updated: std::time::SystemTime::now(),
+            last_updated: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs(),
         };
         
         positions.push(position);
@@ -907,131 +842,42 @@ async fn get_positions(&self, address: Address) -> Result<Vec<Position>, Adapter
     tracing::info!(
         user_address = %address,
         total_positions = positions.len(),
-        total_value_usd = positions.iter().map(|p| p.balance_usd).sum::<f64>(),
+        total_value_usd = positions.iter().map(|p| p.value_usd).sum::<f64>(),
         "✅ Completed Yearn Finance position discovery"
     );
     
     Ok(positions)
-}
-
-async fn get_protocol_info(&self) -> Result<serde_json::Value, AdapterError> {
-    let cached_data = self.fetch_all_vaults_data().await?;
-    let chain_name = Self::get_chain_name(self.chain_id);
-    
-    // Calculate aggregate statistics
-    let total_vaults = cached_data.vaults.len();
-    let total_tvl: f64 = cached_data.vaults.iter().map(|v| v.tvl.tvl).sum();
-    let avg_apy: f64 = if !cached_data.vaults.is_empty() {
-        cached_data.vaults.iter().map(|v| v.apy.net_apy).sum::<f64>() / cached_data.vaults.len() as f64
-    } else {
-        0.0
-    };
-    
-    // Count by categories
-    let mut category_counts: HashMap<String, usize> = HashMap::new();
-    let mut version_counts: HashMap<String, usize> = HashMap::new();
-    
-    for vault in &cached_data.vaults {
-        *category_counts.entry(vault.category.clone()).or_insert(0) += 1;
-        *version_counts.entry(vault.version.clone()).or_insert(0) += 1;
     }
-    
-    // Top vaults by TVL
-    let top_vaults: Vec<serde_json::Value> = cached_data.vaults
-        .iter()
-        .take(10)
-        .map(|v| serde_json::json!({
-            "name": v.name,
-            "symbol": v.symbol,
-            "address": v.address,
-            "tvl": v.tvl.tvl,
-            "apy": v.apy.net_apy,
-            "category": v.category,
-            "version": v.version
-        }))
-        .collect();
-    
-    Ok(serde_json::json!({
-        "protocol": self.name(),
-        "chain": chain_name,
-        "chain_id": self.chain_id,
-        "registry_address": self.registry_address.map(|a| a.to_string()),
-        "statistics": {
-            "total_vaults": total_vaults,
-            "total_tvl_usd": total_tvl,
-            "average_apy": avg_apy,
-            "total_earnings_tracked": cached_data.earnings.len()
-        },
-        "vault_breakdown": {
-            "by_category": category_counts,
-            "by_version": version_counts
-        },
-        "top_vaults_by_tvl": top_vaults,
-        "supported_features": [
-            "Automated yield farming",
-            "Multi-strategy vaults",
-            "Auto-compounding",
-            "Vault migration",
-            "Performance tracking",
-            "Risk assessment"
-        ],
-        "data_sources": [
-            "Yearn Finance API",
-            "On-chain vault contracts",
-            "Yearn Registry",
-            "CoinGecko price feeds"
-        ],
-        "cache_info": {
-            "vault_data_cache_duration_minutes": 20,
-            "position_cache_duration_minutes": 5,
-            "last_updated": SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
+
+
+
+    async fn supports_contract(&self, contract_address: Address) -> bool {
+        // Check if the contract is a known Yearn vault
+        self.is_yearn_vault(contract_address).await.unwrap_or(false)
+    }
+
+    async fn calculate_risk_score(&self, positions: &[Position]) -> Result<u8, AdapterError> {
+        if positions.is_empty() {
+            return Ok(0);
         }
-    }))
-}
-
-async fn refresh_cache(&self) -> Result<(), AdapterError> {
-    tracing::info!("🔄 Refreshing all Yearn Finance caches");
-    
-    // Clear all caches
-    {
-        let mut vault_cache = self.vault_cache.lock().unwrap();
-        *vault_cache = None;
+        
+        // Calculate weighted average risk score
+        let total_value: f64 = positions.iter().map(|p| p.value_usd).sum();
+        if total_value == 0.0 {
+            return Ok(0);
+        }
+        
+        let weighted_risk: f64 = positions.iter()
+            .map(|p| (p.risk_score as f64) * (p.value_usd / total_value))
+            .sum();
+            
+        Ok(weighted_risk.round() as u8)
     }
-    
-    {
-        let mut position_cache = self.position_cache.lock().unwrap();
-        position_cache.clear();
-    }
-    
-    // Pre-warm vault cache
-    let _cached_data = self.fetch_all_vaults_data().await?;
-    
-    tracing::info!("✅ Refreshed all Yearn Finance caches");
-    Ok(())
-}
 
-async fn get_transaction_history(&self, address: Address, limit: Option<usize>) -> Result<Vec<serde_json::Value>, AdapterError> {
-    // This would require indexing deposit/withdrawal events from Yearn vaults
-    // For now, return empty as this is typically handled by transaction indexers
-    tracing::info!(
-        user_address = %address,
-        "Transaction history not implemented for Yearn adapter - use transaction indexer"
-    );
-    Ok(vec![])
-}
-
-async fn estimate_gas(&self, _operation: &str, _params: serde_json::Value) -> Result<U256, AdapterError> {
-    // Return typical gas estimates for Yearn operations
-    match _operation {
-        "deposit" => Ok(U256::from(150_000)), // Typical deposit gas
-        "withdraw" => Ok(U256::from(200_000)), // Typical withdrawal gas
-        "migrate" => Ok(U256::from(300_000)), // Vault migration gas
-        _ => Ok(U256::from(100_000)), // Default estimate
+    async fn get_position_value(&self, position: &Position) -> Result<f64, AdapterError> {
+        // For Yearn positions, the value is already calculated and stored
+        Ok(position.value_usd)
     }
-}
 }
 
 #[cfg(test)]
