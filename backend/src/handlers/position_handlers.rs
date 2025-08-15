@@ -440,7 +440,7 @@ pub async fn test_aave_only(
     let ethereum_client = crate::blockchain::EthereumClient::from_provider((**ethereum_provider).clone());
     
     // Create Aave V3 adapter
-    let aave_adapter = AaveV3Adapter::new(ethereum_client)
+    let aave_adapter = AaveV3Adapter::new(ethereum_client, 1)
         .map_err(|e| AppError::ExternalServiceError(format!("Failed to create Aave V3 adapter: {}", e)))?;
     
     let mut test_results = serde_json::Map::new();
@@ -538,7 +538,7 @@ pub async fn test_aave_enhanced(
     let ethereum_client = crate::blockchain::EthereumClient::from_provider((**ethereum_provider).clone());
     
     // Create enhanced Aave V3 adapter
-    let aave_adapter = AaveV3Adapter::new(ethereum_client)
+    let aave_adapter = AaveV3Adapter::new(ethereum_client, 1)
         .map_err(|e| AppError::ExternalServiceError(format!("Failed to create Aave V3 adapter: {}", e)))?;
     
     let mut test_results = serde_json::Map::new();

@@ -19,6 +19,15 @@ pub enum AdapterError {
     
     #[error("Calculation error: {0}")]
     CalculationError(String),
+    
+    #[error("Operation timeout: {0}")]
+    Timeout(String),
+    
+    #[error("Unsupported chain: {0}")]
+    UnsupportedChain(String),
+    
+    #[error("Network error: {0}")]
+    NetworkError(String),
 }
 
 /// Represents a DeFi position for any protocol

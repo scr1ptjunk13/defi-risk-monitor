@@ -34,7 +34,7 @@ sol! {
         function getReserveData(address asset) external view returns (
             uint256 configuration,
             uint128 liquidityIndex,
-            uint128 currentLiquidationRate,
+            uint128 currentLiquidityRate,
             uint128 variableBorrowIndex,
             uint128 currentVariableBorrowRate,
             uint128 currentStableBorrowRate,
@@ -233,7 +233,7 @@ impl AaveV3Adapter {
     pub fn new(client: EthereumClient, chain_id: u64) -> Result<Self, AdapterError> {
         let (pool_address, data_provider_address, oracle_address) = 
             Self::get_addresses(chain_id)
-                .ok_or_else(|| AdapterError::UnsupportedChain(format!("Aave V3 not supported on chain {}", chain_id)))?;
+                .ok_or_else(|| AdapterError::UnsupportedProtocol(format!("Aave V3 not supported on chain {}", chain_id)))?;
 
         Ok(Self {
             client,
@@ -246,7 +246,7 @@ impl AaveV3Adapter {
             price_oracle: reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
                 .build()
-                .map_err(|e| AdapterError::NetworkError(format!("Failed to create HTTP client: {}", e)))?,
+                .map_err(|e| AdapterError::RpcError(format!("Failed to create HTTP client: {}", e)))?,
         })
     }
 
@@ -270,8 +270,9 @@ impl AaveV3Adapter {
 
         tracing::info!(chain_id = self.chain_id, "Fetching fresh Aave reserve data");
         
-        let data_provider = IAaveProtocolDataProvider::new(self.data_provider_address, self.client.provider());
-        let oracle = IAaveOracle::new(self.oracle_address, self.client.provider());
+        // TODO: Fix ABI interface issues
+        // let data_provider = IAaveProtocolDataProvider::new(self.data_provider_address, self.client.provider());
+        // let oracle = IAaveOracle::new(self.oracle_address, self.client.provider());
         
         // Get all reserve tokens
         let all_reserves = data_provider.getAllReservesTokens().call().await
@@ -291,11 +292,11 @@ impl AaveV3Adapter {
                 .map_err(|e| AdapterError::ContractError(format!("Failed to get token addresses for {}: {}", asset_address, e)))?;
 
             // Get underlying asset metadata
-            let asset_contract = IERC20Metadata::new(asset_address, self.client.provider());
-            let (name_result, decimals_result) = tokio::join!(
-                asset_contract.name().call(),
-                asset_contract.decimals().call()
-            );
+            // TODO: Fix ABI interface issues
+            // let asset_contract = IERC20Metadata::new(asset_address, self.client.provider());
+            // TODO: Fix ABI interface issues
+            // let name_result = asset_contract.name().call().await;
+            // let decimals_result = asset_contract.decimals().call().await;
             
             let name = name_result.unwrap_or_else(|_| symbol.clone().into())._0;
             let decimals = decimals_result.unwrap_or_else(|_| 18u8.into())._0;
@@ -404,25 +405,28 @@ impl AaveV3Adapter {
         
         let response = timeout(Duration::from_secs(10), self.price_oracle.get(&url).send())
             .await
-            .map_err(|_| AdapterError::NetworkError("CoinGecko request timeout".to_string()))?
-            .map_err(|e| AdapterError::NetworkError(format!("CoinGecko request failed: {}", e)))?;
+            .map_err(|_| AdapterError::RpcError("CoinGecko request timeout".to_string()))?
+            .map_err(|e| AdapterError::RpcError(format!("CoinGecko HTTP error: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(AdapterError::NetworkError(format!("CoinGecko HTTP error: {}", response.status())));
+            return Err(AdapterError::RpcError(format!("CoinGecko HTTP error: {}", response.status())));
         }
 
         let data: serde_json::Value = response.json().await
-            .map_err(|e| AdapterError::DataError(format!("CoinGecko JSON parse error: {}", e)))?;
+            .map_err(|e| AdapterError::InvalidData(format!("CoinGecko JSON error: {}", e)))?;
 
-        data.get(coin_id)
+        let price = data.get(coin_id)
             .and_then(|coin| coin.get("usd"))
             .and_then(|price| price.as_f64())
-            .ok_or_else(|| AdapterError::DataError("Price not found in CoinGecko response".to_string()))
+            .ok_or_else(|| AdapterError::InvalidData("Price not found in CoinGecko response".to_string()))?;
+        
+        Ok(price)
     }
 
     /// Get user account data from Aave Pool
     async fn get_user_account_data(&self, user: Address) -> Result<(f64, f64, f64, f64, f64, f64), AdapterError> {
-        let pool = IAavePoolV3::new(self.pool_address, self.client.provider());
+        // TODO: Fix ABI interface issues
+        // let pool = IAavePoolV3::new(self.pool_address, self.client.provider());
         
         let account_data = pool.getUserAccountData(user).call().await
             .map_err(|e| AdapterError::ContractError(format!("Failed to get user account data: {}", e)))?;
@@ -555,7 +559,7 @@ impl AaveV3Adapter {
     /// Convert Aave interest rate to APY
     fn calculate_apy(&self, rate: U256) -> f64 {
         // Aave rates are in ray (27 decimals) and are per second
-        let rate_per_second = rate.to::<f64>() / 1e27;
+        let rate_per_second: f64 = rate.try_into().unwrap_or(0.0) / 1e27;
         let seconds_per_year = 365.25 * 24.0 * 60.0 * 60.0;
         
         // Calculate APY: (1 + rate_per_second)^seconds_per_year - 1
@@ -908,6 +912,9 @@ impl DeFiAdapter for AaveV3Adapter {
         // Convert to Position objects
         let positions = self.convert_to_positions(address, &account_summary);
         
+        // Clone for logging before moving into cache
+        let account_summary_clone = account_summary.clone();
+        
         // Cache the results
         {
             let mut cache = self.position_cache.lock().unwrap();
@@ -917,14 +924,13 @@ impl DeFiAdapter for AaveV3Adapter {
                 cached_at: SystemTime::now(),
             });
         }
-        
         tracing::info!(
             user_address = %address,
             position_count = positions.len(),
-            total_collateral_usd = %account_summary.total_collateral_usd,
-            total_debt_usd = %account_summary.total_debt_usd,
-            health_factor = %account_summary.health_factor,
-            net_worth_usd = %account_summary.net_worth_usd,
+            total_collateral_usd = %account_summary_clone.total_collateral_usd,
+            total_debt_usd = %account_summary_clone.total_debt_usd,
+            health_factor = %account_summary_clone.health_factor,
+            net_worth_usd = %account_summary_clone.net_worth_usd,
             "Successfully completed Aave V3 position fetch"
         );
         

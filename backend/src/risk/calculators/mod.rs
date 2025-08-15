@@ -6,6 +6,7 @@ pub mod rocketpool;
 pub mod etherfi;
 pub mod yearnfinance;
 pub mod aave_v3;
+pub mod morphoblue;
 
 // Re-export all calculators
 pub use lido::LidoRiskCalculator;
@@ -15,3 +16,4 @@ pub use rocketpool::RocketPoolRiskCalculator;
 pub use etherfi::EtherFiRiskCalculator;
 pub use yearnfinance::YearnFinanceRiskCalculator;
 pub use aave_v3::AaveV3RiskCalculator;
+pub use morphoblue::MorphoBlueRiskManager;

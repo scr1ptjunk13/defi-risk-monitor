@@ -14,6 +14,7 @@ pub mod position_aggregator;
 pub mod audit_service;
 pub mod auth_service;
 pub mod price_storage;
+pub mod aave_price_service;
 pub mod protocol_risk_service;
 pub mod mev_risk_service;
 pub mod cross_chain_risk_service;

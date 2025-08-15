@@ -1,0 +1,185 @@
+// Aave V3 Contract Interfaces and ABIs
+use alloy::{
+    primitives::{Address, U256},
+    sol,
+};
+use serde::{Deserialize, Serialize};
+
+// Complete Aave V3 contract interfaces
+sol! {
+    #[sol(rpc)]
+    interface IERC20Metadata {
+        function name() external view returns (string memory);
+        function symbol() external view returns (string memory);
+        function decimals() external view returns (uint8);
+        function totalSupply() external view returns (uint256);
+        function balanceOf(address account) external view returns (uint256);
+    }
+
+    #[sol(rpc)]
+    interface IAavePoolV3 {
+        function getUserAccountData(address user) external view returns (
+            uint256 totalCollateralBase,
+            uint256 totalDebtBase,
+            uint256 availableBorrowsBase,
+            uint256 currentLiquidationThreshold,
+            uint256 ltv,
+            uint256 healthFactor
+        );
+        
+        function getReservesList() external view returns (address[] memory);
+        
+        function getConfiguration(address asset) external view returns (uint256);
+        
+        function getReserveData(address asset) external view returns (
+            uint256 configuration,
+            uint128 liquidityIndex,
+            uint128 currentLiquidityRate,
+            uint128 variableBorrowIndex,
+            uint128 currentVariableBorrowRate,
+            uint128 currentStableBorrowRate,
+            uint40 lastUpdateTimestamp,
+            uint16 id,
+            address aTokenAddress,
+            address stableDebtTokenAddress,
+            address variableDebtTokenAddress,
+            address interestRateStrategyAddress,
+            uint128 accruedToTreasury,
+            uint128 unbacked,
+            uint128 isolationModeTotalDebt
+        );
+    }
+
+    #[sol(rpc)]
+    interface IAaveOracle {
+        function getAssetPrice(address asset) external view returns (uint256);
+        function getAssetsPrices(address[] calldata assets) external view returns (uint256[] memory);
+        function getSourceOfAsset(address asset) external view returns (address);
+        function getFallbackOracle() external view returns (address);
+    }
+
+    #[sol(rpc)]
+    interface IAaveProtocolDataProvider {
+        function getUserReserveData(address asset, address user) external view returns (
+            uint256 currentATokenBalance,
+            uint256 currentStableDebt,
+            uint256 currentVariableDebt,
+            uint256 principalStableDebt,
+            uint256 scaledVariableDebt,
+            uint256 stableBorrowRate,
+            uint256 liquidityRate,
+            uint40 stableRateLastUpdated,
+            bool usageAsCollateralEnabled
+        );
+        
+        function getReserveConfigurationData(address asset) external view returns (
+            uint256 decimals,
+            uint256 ltv,
+            uint256 liquidationThreshold,
+            uint256 liquidationBonus,
+            uint256 reserveFactor,
+            bool usageAsCollateralEnabled,
+            bool borrowingEnabled,
+            bool stableBorrowRateEnabled,
+            bool isActive,
+            bool isFrozen
+        );
+        
+        function getAllReservesTokens() external view returns (
+            (string, address)[] memory
+        );
+        
+        function getReserveTokensAddresses(address asset) external view returns (
+            address aTokenAddress,
+            address stableDebtTokenAddress,
+            address variableDebtTokenAddress
+        );
+    }
+
+    #[sol(rpc)]
+    interface IAToken {
+        function balanceOf(address user) external view returns (uint256);
+        function scaledBalanceOf(address user) external view returns (uint256);
+        function UNDERLYING_ASSET_ADDRESS() external view returns (address);
+    }
+
+    #[sol(rpc)]
+    interface IVariableDebtToken {
+        function balanceOf(address user) external view returns (uint256);
+        function scaledBalanceOf(address user) external view returns (uint256);
+        function UNDERLYING_ASSET_ADDRESS() external view returns (address);
+    }
+}
+
+// Data structures for Aave V3 operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AaveReserveData {
+    pub asset_address: Address,
+    pub symbol: String,
+    pub name: String,
+    pub decimals: u8,
+    pub a_token_address: Address,
+    pub stable_debt_token_address: Address,
+    pub variable_debt_token_address: Address,
+    pub current_liquidity_rate: U256,
+    pub current_variable_borrow_rate: U256,
+    pub current_stable_borrow_rate: U256,
+    pub liquidity_index: U256,
+    pub variable_borrow_index: U256,
+    pub ltv: u64,
+    pub liquidation_threshold: u64,
+    pub liquidation_bonus: u64,
+    pub reserve_factor: u64,
+    pub usage_as_collateral_enabled: bool,
+    pub borrowing_enabled: bool,
+    pub stable_borrow_rate_enabled: bool,
+    pub is_active: bool,
+    pub is_frozen: bool,
+    pub price_usd: f64,
+    pub last_updated: u64,
+}
+
+// Contract interface types are generated by the sol! macro above
+// Use them directly: AavePoolV3, AaveProtocolDataProvider, IERC20Metadata
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AaveUserPosition {
+    pub asset_address: Address,
+    pub symbol: String,
+    pub a_token_balance: U256,
+    pub stable_debt: U256,
+    pub variable_debt: U256,
+    pub usage_as_collateral_enabled: bool,
+    pub supply_apy: f64,
+    pub variable_borrow_apy: f64,
+    pub stable_borrow_apy: f64,
+    pub supply_balance_usd: f64,
+    pub debt_balance_usd: f64,
+    pub net_balance_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AaveAccountSummary {
+    pub total_collateral_usd: f64,
+    pub total_debt_usd: f64,
+    pub available_borrows_usd: f64,
+    pub current_liquidation_threshold: f64,
+    pub loan_to_value: f64,
+    pub health_factor: f64,
+    pub net_worth_usd: f64,
+    pub positions: Vec<AaveUserPosition>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CachedAaveData {
+    pub data: HashMap<Address, AaveReserveData>,
+    pub timestamp: std::time::SystemTime,
+}
+
+#[derive(Debug, Clone)]
+pub struct CachedPositions {
+    pub positions: AaveAccountSummary,
+    pub timestamp: std::time::SystemTime,
+}
+
+use std::collections::HashMap;

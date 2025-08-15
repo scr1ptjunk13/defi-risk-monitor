@@ -7,6 +7,7 @@ pub mod lido;
 pub mod rocketpool;
 pub mod etherfi;
 pub mod yearnfinance;
+pub mod morphoblue;
 
 pub use traits::*;
 pub use uniswap_v3::UniswapV3Adapter;
@@ -17,3 +18,4 @@ pub use lido::LidoAdapter;
 pub use rocketpool::RocketPoolAdapter;
 pub use etherfi::EtherFiAdapter;
 pub use yearnfinance::YearnAdapter;
+pub use morphoblue::MorphoBlueAdapter;

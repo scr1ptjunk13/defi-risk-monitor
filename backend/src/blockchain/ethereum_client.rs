@@ -107,6 +107,11 @@ impl EthereumClient {
             .map_err(|e| EthereumError::RpcError(format!("Failed to get block number: {}", e)))
     }
     
+    /// Get the underlying provider for contract instantiation
+    pub fn provider(&self) -> &RootProvider<Http<Client>> {
+        &self.provider
+    }
+    
     /// Make a contract call with retry logic
     pub async fn call_contract_with_retry<F, Fut, T>(
         &self,
@@ -147,11 +152,7 @@ impl EthereumClient {
         
         Err(EthereumError::MaxRetriesExceeded(max_retries))
     }
-    
-    /// Get the provider for direct access
-    pub fn provider(&self) -> &RootProvider<Http<Client>> {
-        &self.provider
-    }
+
 }
 
 #[cfg(test)]

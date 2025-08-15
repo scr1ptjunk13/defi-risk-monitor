@@ -48,7 +48,7 @@ impl PositionAggregator {
         
         // Aave V3 (now implemented)
         tracing::info!("Initializing Aave V3 adapter");
-        adapters.push(Box::new(AaveV3Adapter::new(client.clone())?));
+        adapters.push(Box::new(AaveV3Adapter::new(client.clone(), 1)?));
         tracing::info!("Successfully initialized Aave V3 adapter");
         
 
