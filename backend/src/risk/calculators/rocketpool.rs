@@ -5,21 +5,27 @@ use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use num_traits::{Zero, FromPrimitive, ToPrimitive};
 use std::str::FromStr;
-use tracing::{info, warn, debug};
+use tracing::{info, debug};
 
-use crate::models::position::Position;
+// Commented out broken models import:
+// use crate::models::position::Position;
+
+use crate::risk::traits::Position;
 use crate::risk::{
     RiskError, 
-    ProtocolRiskCalculator, 
+    traits::{
+        ProtocolRiskCalculator, 
+        RealTimeRiskCalculator,
+        ExplainableRiskCalculator,
+        RiskExplanation,
+        RiskFactorContribution
+    },
     ProtocolRiskMetrics, 
-    RocketPoolRiskMetrics,
-    RealTimeRiskCalculator,
-    ExplainableRiskCalculator,
-    RiskExplanation,
-    RiskFactorContribution
+    RocketPoolRiskMetrics
 };
 
 /// Rocket Pool-specific risk calculator
+#[allow(dead_code)]
 pub struct RocketPoolRiskCalculator {
     // Configuration
     validator_slashing_threshold: f64,
@@ -35,6 +41,7 @@ pub struct RocketPoolRiskCalculator {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct NodeOperatorMetrics {
     total_nodes: u64,
     active_nodes: u64,
@@ -46,6 +53,7 @@ struct NodeOperatorMetrics {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ProtocolMetrics {
     total_eth_staked: f64,
     reth_supply: f64,
@@ -261,7 +269,7 @@ impl ProtocolRiskCalculator for RocketPoolRiskCalculator {
         
         // Get additional metrics
         let protocol_metrics = self.get_protocol_metrics().await?;
-        let node_metrics = self.get_node_operator_metrics().await?;
+        let _node_metrics = self.get_node_operator_metrics().await?;
         let peg_price = self.get_reth_peg().await?;
         
         let rocket_pool_metrics = RocketPoolRiskMetrics {

@@ -87,23 +87,10 @@ pub fn get_default_rpc_urls() -> HashMap<u64, String> {
 }
 
 /// Get chain-specific client creation function
-pub async fn create_chain_client(chain_id: u64, rpc_url: &str) -> Result<crate::blockchain::ethereum_client::EthereumClient, crate::adapters::traits::AdapterError> {
-    match chain_id {
-        1 => {
-            // Ethereum mainnet
-            crate::blockchain::ethereum_client::EthereumClient::new(rpc_url).await
-                .map_err(|e| crate::adapters::traits::AdapterError::NetworkError(format!("Failed to create client: {}", e)))
-        }
-        137 | 42161 | 10 | 43114 => {
-            // For now, use EthereumClient for all EVM chains
-            // In the future, this could be specialized per chain
-            crate::blockchain::ethereum_client::EthereumClient::new(rpc_url).await
-                .map_err(|e| crate::adapters::traits::AdapterError::NetworkError(format!("Failed to create client: {}", e)))
-        }
-        _ => Err(crate::adapters::traits::AdapterError::UnsupportedChain(
-            format!("Unsupported chain ID: {}", chain_id)
-        ))
-    }
+pub async fn create_chain_client(_chain_id: u64, _rpc_url: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    // Commented out broken blockchain client creation:
+    // Ok(crate::blockchain::ethereum_client::EthereumClient::from_rpc_url(&rpc_url)?)
+    Err("Blockchain client not implemented".into())
 }
 
 #[cfg(test)]

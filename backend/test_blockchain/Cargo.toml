@@ -1,8 +1,0 @@
-[package]
-name = "test_blockchain"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-alloy = { version = "0.3", features = ["full", "provider-http", "rpc-types", "contract", "sol-types"] }
-tokio = { version = "1.0", features = ["full"] }

@@ -1,5 +1,5 @@
 // Advanced Morpho Blue Risk Management System
-use alloy::primitives::{Address, U256, B256};
+use alloy::primitives::{B256};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -104,7 +104,8 @@ pub struct MorphoBlueRiskManager {
 }
 
 #[derive(Debug, Clone)]
-struct RiskConfig {
+#[allow(dead_code)]
+pub struct RiskConfig {
     health_factor_warning_threshold: f64,
     health_factor_critical_threshold: f64,
     max_concentration_per_asset: f64,
@@ -115,6 +116,7 @@ struct RiskConfig {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct HistoricalSnapshot {
     timestamp: u64,
     account_summary: MorphoAccountSummary,
@@ -122,6 +124,7 @@ struct HistoricalSnapshot {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct MarketCondition {
     utilization_rate: f64,
     supply_rate: f64,
@@ -132,6 +135,7 @@ struct MarketCondition {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct VolatilityModel {
     asset_symbol: String,
     daily_volatility: f64,
@@ -319,7 +323,7 @@ impl MorphoBlueRiskManager {
             .as_secs();
 
         // Health factor alerts
-        for (i, position) in account.positions.iter().enumerate() {
+        for (_i, position) in account.positions.iter().enumerate() {
             if position.health_factor.is_finite() && position.health_factor > 0.0 {
                 if position.health_factor < self.config.health_factor_critical_threshold {
                     alerts.push(RiskAlert {

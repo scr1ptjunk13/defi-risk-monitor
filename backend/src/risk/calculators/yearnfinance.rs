@@ -1,6 +1,6 @@
 use crate::risk::traits::RiskExplanation;
-use bigdecimal::BigDecimal;
-use serde::{Deserialize, Serialize};
+// Removed unused BigDecimal import
+// Removed unused serde imports
 use std::collections::HashMap;
 
 /// Yearn Finance specific risk calculator
@@ -37,7 +37,7 @@ impl YearnFinanceRiskCalculator {
     /// Calculate comprehensive risk score for Yearn positions
     pub fn calculate_risk_score(&self, data: &YearnRiskData) -> (f64, f64, RiskExplanation) {
         let mut risk_factors = HashMap::new();
-        let mut explanations: Vec<String> = Vec::new();
+        let _explanations: Vec<String> = Vec::new();
         
         // 1. Smart Contract Risk (15-25 points)
         let smart_contract_risk = self.calculate_smart_contract_risk(data);
@@ -318,7 +318,7 @@ impl YearnFinanceRiskCalculator {
     }
     
     fn generate_risk_explanation(&self, data: &YearnRiskData, risk_factors: &HashMap<String, f64>, total_risk: f64) -> RiskExplanation {
-        let risk_level = match total_risk {
+        let _risk_level = match total_risk {
             r if r < 10.0 => "low",
             r if r < 20.0 => "medium",
             r if r < 30.0 => "high",
@@ -407,6 +407,7 @@ impl YearnFinanceRiskCalculator {
         risks
     }
     
+    #[allow(dead_code)]
     fn generate_recommendations(&self, data: &YearnRiskData, risk_factors: &HashMap<String, f64>) -> Vec<String> {
         let mut recommendations = Vec::new();
         

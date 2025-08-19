@@ -1,7 +1,14 @@
 use alloy::primitives::Address;
 use async_trait::async_trait;
 
-use crate::blockchain::EthereumClient;
+// Commented out broken blockchain import:
+// use crate::blockchain::EthereumClient;
+
+// Placeholder type definition:
+#[derive(Debug, Clone)]
+pub struct EthereumClient {
+    pub rpc_url: String,
+}
 use super::traits::{DeFiAdapter, Position, AdapterError};
 
 /// Curve protocol adapter

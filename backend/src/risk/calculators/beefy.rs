@@ -1,11 +1,13 @@
 use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use num_traits::{FromPrimitive, Zero};
-use serde_json::Value;
+// Removed unused serde_json::Value import
 use std::collections::HashMap;
 
-use crate::models::Position;
-use crate::risk::traits::ProtocolRiskCalculator;
+// Commented out broken models import:
+// use crate::models::Position;
+
+use crate::risk::traits::{Position, ProtocolRiskCalculator};
 use crate::risk::metrics::{ProtocolRiskMetrics, BeefyRiskMetrics};
 use crate::risk::errors::RiskError;
 

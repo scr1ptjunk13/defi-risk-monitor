@@ -1,18 +1,21 @@
 // Generic Risk Calculator for protocols without specific implementations
 use async_trait::async_trait;
 use bigdecimal::BigDecimal;
-use num_traits::{Zero, ToPrimitive, FromPrimitive};
+use num_traits::FromPrimitive;
 use tracing::{info, debug};
 
-use crate::models::Position;
+// Commented out broken models import:
+// use crate::models::Position;
+
+use crate::risk::traits::{Position, ProtocolRiskCalculator};
 use crate::risk::{
     RiskError, 
-    ProtocolRiskCalculator, 
     ProtocolRiskMetrics, 
     GenericRiskMetrics,
 };
 
 /// Generic risk calculator for protocols without specific implementations
+#[allow(dead_code)]
 pub struct GenericRiskCalculator {
     protocol_name: String,
     base_risk_score: f64,
@@ -81,7 +84,7 @@ impl GenericRiskCalculator {
     async fn calculate_liquidity_risk(&self, positions: &[Position]) -> Result<BigDecimal, RiskError> {
         // Calculate total value from token amounts (simplified)
         let total_value: f64 = positions.iter()
-            .map(|p| (&p.token0_amount + &p.token1_amount).to_f64().unwrap_or(0.0))
+            .map(|p| (p.token0_amount.clone() + &p.token1_amount).parse::<f64>().unwrap_or(0.0))
             .sum();
         
         // Liquidity risk based on position size and protocol type
@@ -269,7 +272,9 @@ impl ProtocolRiskCalculator for GenericRiskCalculator {
     
     async fn validate_position(&self, position: &Position) -> Result<bool, RiskError> {
         // Generic validation - just check basic requirements
-        let position_value = (&position.token0_amount + &position.token1_amount).to_f64().unwrap_or(0.0);
+        let token0_val = position.token0_amount.parse::<f64>().unwrap_or(0.0);
+        let token1_val = position.token1_amount.parse::<f64>().unwrap_or(0.0);
+        let position_value = token0_val + token1_val;
         if position_value < 0.0 {
             return Err(RiskError::ValidationError {
                 reason: "Position balance cannot be negative".to_string(),

@@ -12,7 +12,7 @@ pub mod calculators;
 // Re-export main types
 pub use traits::*;
 pub use metrics::*;
-pub use orchestrator::*;
+pub use orchestrator::RiskOrchestrator;
 pub use errors::*;
 pub use calculators::*;
 

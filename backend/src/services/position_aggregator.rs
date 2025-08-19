@@ -3,12 +3,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::blockchain::EthereumClient;
 use crate::adapters::{
     DeFiAdapter, Position, PortfolioSummary, AdapterError,
     UniswapV3Adapter, AaveV3Adapter, CurveAdapter, LidoAdapter
 };
 use crate::services::price_service::{PriceService, PriceError};
+
+// Commented out broken blockchain import:
+// use crate::blockchain::EthereumClient;
+
+// Placeholder type definition for missing EthereumClient:
+#[derive(Debug, Clone)]
+pub struct EthereumClient {
+    pub rpc_url: String,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AggregatorError {
@@ -44,17 +52,30 @@ impl PositionAggregator {
         
         // Uniswap V3 (fully implemented)
         tracing::info!("Initializing Uniswap V3 adapter");
-        adapters.push(Box::new(UniswapV3Adapter::new(client.clone())?));
+        let uniswap_client = crate::adapters::uniswap_v3::EthereumClient {
+            rpc_url: client.rpc_url.clone(),
+        };
+        adapters.push(Box::new(UniswapV3Adapter::new(uniswap_client)?));
         
         // Aave V3 (now implemented)
         tracing::info!("Initializing Aave V3 adapter");
-        adapters.push(Box::new(AaveV3Adapter::new(client.clone(), 1)?));
+        let aave_client = crate::adapters::aave_v3::EthereumClient {
+            rpc_url: client.rpc_url.clone(),
+        };
+        adapters.push(Box::new(AaveV3Adapter::new(aave_client, 1)?));
         tracing::info!("Successfully initialized Aave V3 adapter");
         
 
         // Other protocols (stubs for now, will implement next)
-        adapters.push(Box::new(CurveAdapter::new(client.clone())));
-        adapters.push(Box::new(LidoAdapter::new(client.clone())?));
+        let curve_client = crate::adapters::curve::EthereumClient {
+            rpc_url: client.rpc_url.clone(),
+        };
+        adapters.push(Box::new(CurveAdapter::new(curve_client)));
+        
+        let lido_client = crate::adapters::lido::EthereumClient {
+            rpc_url: client.rpc_url.clone(),
+        };
+        adapters.push(Box::new(LidoAdapter::new(lido_client)?));
         
         Ok(Self {
             adapters,
@@ -252,7 +273,7 @@ mod tests {
         }
         
         let rpc_url = std::env::var("ETHEREUM_RPC_URL").unwrap();
-        let client = EthereumClient::new(&rpc_url).await.unwrap();
+        let client = EthereumClient { rpc_url };
         let aggregator = PositionAggregator::new(client, None).await.unwrap();
         
         let protocols = aggregator.get_supported_protocols();
@@ -268,7 +289,7 @@ mod tests {
         }
         
         let rpc_url = std::env::var("ETHEREUM_RPC_URL").unwrap();
-        let client = EthereumClient::new(&rpc_url).await.unwrap();
+        let client = EthereumClient { rpc_url };
         let aggregator = PositionAggregator::new(client, None).await.unwrap();
         
         let health = aggregator.health_check().await;

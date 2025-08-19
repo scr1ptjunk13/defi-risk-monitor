@@ -5,22 +5,28 @@ use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use num_traits::{Zero, FromPrimitive, ToPrimitive};
 use std::str::FromStr;
-use tracing::{info, warn, debug};
+use tracing::{info, debug};
 
-use crate::models::position::Position;
+// Commented out broken models import:
+// use crate::models::position::Position;
+
+use crate::risk::traits::Position;
 use crate::risk::{
     RiskError, 
-    ProtocolRiskCalculator, 
+    traits::{
+        ProtocolRiskCalculator, 
+        RealTimeRiskCalculator,
+        ExplainableRiskCalculator,
+        RiskExplanation,
+        RiskFactorContribution
+    },
     ProtocolRiskMetrics, 
-    EtherFiRiskMetrics,
-    RealTimeRiskCalculator,
-    ExplainableRiskCalculator,
-    RiskExplanation,
-    RiskFactorContribution
+    EtherFiRiskMetrics
 };
 
 /// Ether.fi-specific risk calculator
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct EtherFiRiskCalculator {
     // Configuration
     validator_slashing_threshold: f64,
@@ -37,6 +43,7 @@ pub struct EtherFiRiskCalculator {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ValidatorMetrics {
     total_validators: u64,
     active_validators: u64,
@@ -46,6 +53,7 @@ struct ValidatorMetrics {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ProtocolMetrics {
     total_eth_staked: f64,
     eeth_supply: f64,
@@ -57,6 +65,7 @@ struct ProtocolMetrics {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct RestakingMetrics {
     total_restaked_eth: f64,
     eigenlayer_tvl: f64,
@@ -147,7 +156,7 @@ impl EtherFiRiskCalculator {
     }
     
     /// Calculate restaking exposure risk (unique to Ether.fi)
-    async fn calculate_restaking_exposure_risk(&self, positions: &[Position]) -> Result<BigDecimal, RiskError> {
+    async fn calculate_restaking_exposure_risk(&self, _positions: &[Position]) -> Result<BigDecimal, RiskError> {
         debug!("Calculating restaking exposure risk");
         
         // Get restaking metrics
