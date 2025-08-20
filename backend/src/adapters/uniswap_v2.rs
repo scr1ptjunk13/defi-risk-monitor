@@ -937,7 +937,6 @@ impl DeFiAdapter for UniswapV2Adapter {
                 value_usd: value_usd.max(1.0), // Real calculated value
                 pnl_usd,   // Real P&L calculation
                 pnl_percentage, // Real P&L percentage
-                risk_score: 25, // V2 is generally lower risk than V3
                 metadata: serde_json::json!({
                     "pair_address": format!("{:?}", liq_pos.pair_address),
                     "token0": format!("{:?}", liq_pos.token0),
@@ -977,48 +976,6 @@ impl DeFiAdapter for UniswapV2Adapter {
     async fn supports_contract(&self, contract_address: Address) -> bool {
         // Check if it's the factory or router
         contract_address == self.factory_address || contract_address == self.router_address
-    }
-    
-    async fn calculate_risk_score(&self, positions: &[Position]) -> Result<u8, AdapterError> {
-        if positions.is_empty() {
-            return Ok(0);
-        }
-        
-        // V2 risk calculation based on:
-        // - Pool size (larger = safer)
-        // - Token pair volatility
-        // - Impermanent loss potential
-        
-        let mut total_risk = 0u32;
-        let mut total_weight = 0f64;
-        
-        for position in positions {
-            let position_weight = position.value_usd;
-            let mut risk_score = 25u32; // Base V2 risk
-            
-            // Adjust based on position size
-            if position.value_usd > 100_000.0 {
-                risk_score -= 5; // Large positions are generally safer
-            } else if position.value_usd < 1_000.0 {
-                risk_score += 10; // Small positions are riskier
-            }
-            
-            // Adjust based on P&L
-            if position.pnl_percentage < -10.0 {
-                risk_score += 15; // Currently losing money
-            } else if position.pnl_percentage > 10.0 {
-                risk_score -= 5; // Currently profitable
-            }
-            
-            total_risk += risk_score * position_weight as u32;
-            total_weight += position_weight;
-        }
-        
-        if total_weight > 0.0 {
-            Ok((total_risk as f64 / total_weight) as u8)
-        } else {
-            Ok(25) // Default V2 risk
-        }
     }
     
     async fn get_position_value(&self, position: &Position) -> Result<f64, AdapterError> {

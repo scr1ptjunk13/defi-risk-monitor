@@ -54,9 +54,6 @@ pub struct Position {
     /// Profit/Loss percentage
     pub pnl_percentage: f64,
     
-    /// Risk score (0-100, higher = riskier)
-    pub risk_score: u8,
-    
     /// Additional protocol-specific data
     pub metadata: serde_json::Value,
     
@@ -82,9 +79,6 @@ pub struct PortfolioSummary {
     /// Number of protocols with positions
     pub protocols_count: u32,
     
-    /// Overall risk score (0-100)
-    pub overall_risk_score: u8,
-    
     /// All positions
     pub positions: Vec<Position>,
     
@@ -104,8 +98,7 @@ pub trait DeFiAdapter: Send + Sync {
     /// Check if the adapter supports a specific contract address
     async fn supports_contract(&self, contract_address: Address) -> bool;
     
-    /// Get the health factor or risk assessment for positions
-    async fn calculate_risk_score(&self, positions: &[Position]) -> Result<u8, AdapterError>;
+
     
     /// Get real-time price data for position valuation
     async fn get_position_value(&self, position: &Position) -> Result<f64, AdapterError>;

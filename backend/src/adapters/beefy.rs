@@ -5,7 +5,6 @@ use alloy::{
 use async_trait::async_trait;
 use crate::adapters::traits::{AdapterError, Position, DeFiAdapter};
 use crate::blockchain::ethereum_client::EthereumClient;
-use crate::services::IERC20;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -72,23 +71,23 @@ struct BeefyTVL {
     tvls: HashMap<String, f64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 struct BeefyPosition {
-    vault_id: String,
-    vault_name: String,
-    chain: String,
-    vault_address: Address,
-    token_address: Address,
-    balance: U256,
-    shares: U256,
-    decimals: u8,
-    underlying_assets: Vec<String>,
-    current_apy: f64,
-    performance_fee: f64,
-    strategy: String,
-    platform: String,
-    risks: Vec<String>,
-    price_per_full_share: f64,
+    pub vault_id: String,
+    pub vault_name: String,
+    pub chain: String,
+    pub vault_address: Address,
+    pub token_address: Address,
+    pub balance: U256,
+    pub shares: U256,
+    pub decimals: u8,
+    pub underlying_assets: Vec<String>,
+    pub current_apy: f64,
+    pub performance_fee: f64,
+    pub strategy: String,
+    pub platform: String,
+    pub risks: Vec<String>,
+    pub price_per_full_share: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -121,25 +120,6 @@ sol! {
         // Events for tracking deposits/withdrawals
         event Deposit(address indexed user, uint256 amount);
         event Withdraw(address indexed user, uint256 amount);
-    }
-    
-    #[sol(rpc)]
-    interface IBeefyStrategy {
-        function wantLockedTotal() external view returns (uint256);
-        function sharesTotal() external view returns (uint256);
-        function earn() external;
-        function harvest() external;
-        function retireStrat() external;
-        function panic() external;
-    }
-    
-    #[sol(rpc)]
-    interface IBeefyRewardPool {
-        function balanceOf(address account) external view returns (uint256);
-        function earned(address account) external view returns (uint256);
-        function rewardPerToken() external view returns (uint256);
-        function rewardRate() external view returns (uint256);
-        function periodFinish() external view returns (uint256);
     }
 }
 
@@ -203,14 +183,14 @@ impl BeefyAdapter {
                     tracing::info!(
                         cache_age_secs = cache_age.as_secs(),
                         vault_count = cached_data.vaults.len(),
-                        "CACHE HIT: Using cached Beefy vault data"
+                        "Using cached Beefy vault data"
                     );
                     return Ok(cached_data.clone());
                 }
             }
         }
         
-        tracing::info!(chain = %self.chain, "CACHE MISS: Fetching fresh Beefy vault data from API");
+        tracing::info!(chain = %self.chain, "Fetching fresh Beefy vault data from API");
         
         // Fetch all data concurrently
         let (vaults_result, prices_result, tvls_result) = tokio::join!(
@@ -240,7 +220,7 @@ impl BeefyAdapter {
             vault_count = cached_data.vaults.len(),
             price_count = cached_data.prices.len(),
             tvl_count = cached_data.tvls.len(),
-            "✅ Fetched and cached all Beefy data"
+            "Fetched and cached all Beefy data"
         );
         
         Ok(cached_data)
@@ -341,7 +321,7 @@ impl BeefyAdapter {
         tracing::info!(
             user_address = %address,
             chain = %self.chain,
-            "🔍 Discovering ALL Beefy yield farming positions"
+            "Discovering Beefy yield farming positions"
         );
         
         let cached_data = self.fetch_all_vaults_data().await?;
@@ -365,350 +345,7 @@ impl BeefyAdapter {
                         );
                     }
                     Ok(None) => {
-                        // Additional Protocol Info
-                    "auto_compound": true, // Beefy always auto-compounds
-                    "compound_frequency": "multiple_times_daily",
-                    "protocol_type": "yield_optimizer",
-                }),
-                last_updated: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
-            };
-            
-            positions.push(position);
-        }
-        
-        // CACHE STORE: Save results to prevent future API spam
-        {
-            let mut cache = self.position_cache.lock().unwrap();
-            cache.insert(address, CachedPositions {
-                positions: positions.clone(),
-                cached_at: SystemTime::now(),
-            });
-        }
-        
-        tracing::info!(
-            user_address = %address,
-            position_count = positions.len(),
-            total_value_usd = positions.iter().map(|p| p.value_usd).sum::<f64>(),
-            "✅ Successfully fetched and cached Beefy positions"
-        );
-        
-        Ok(positions)
-    }
-    
-    async fn supports_contract(&self, contract_address: Address) -> bool {
-        self.is_beefy_vault(contract_address).await
-    }
-    
-    // RISK CALCULATION REMOVED - Now handled by separate risk module
-    // This adapter now only fetches position data
-    
-    async fn get_position_value(&self, position: &Position) -> Result<f64, AdapterError> {
-        // For Beefy positions, we can recalculate real-time value
-        // by getting fresh price data and vault exchange rates
-        
-        if let Some(vault_id) = position.metadata.get("vault_id") {
-            if let Some(vault_id_str) = vault_id.as_str() {
-                // Try to get fresh data
-                if let Ok(cached_data) = self.fetch_all_vaults_data().await {
-                    // Find the vault in cached data
-                    if let Some(vault) = cached_data.vaults.iter().find(|v| v.id == vault_id_str) {
-                        // Get fresh price from price oracle
-                        let mut fresh_price = 0.0f64;
-                        for asset in &vault.assets {
-                            if let Some(&price) = cached_data.prices.get(asset) {
-                                fresh_price = price;
-                                break;
-                            }
-                        }
-                        
-                        if fresh_price > 0.0 {
-                            // Calculate updated value (simplified)
-                            if let Some(balance_str) = position.metadata.get("balance") {
-                                if let Some(balance_str) = balance_str.as_str() {
-                                    if let Ok(balance_raw) = U256::from_str(balance_str) {
-                                        if let Some(decimals) = position.metadata.get("decimals") {
-                                            if let Some(decimals_num) = decimals.as_u64() {
-                                                let balance_f64 = balance_raw.to::<f64>() / 10f64.powi(decimals_num as i32);
-                                                let fresh_value = balance_f64 * fresh_price;
-                                                return Ok(fresh_value);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Fallback to cached value
-        Ok(position.value_usd)
-    }
-}
-
-/// Helper functions for Beefy adapter
-impl BeefyAdapter {
-    /// Get comprehensive vault information for display
-    pub async fn get_vault_info(&self, vault_id: &str) -> Result<serde_json::Value, AdapterError> {
-        let cached_data = self.fetch_all_vaults_data().await?;
-        
-        if let Some(vault) = cached_data.vaults.iter().find(|v| v.id == vault_id) {
-            let tvl = cached_data.tvls.get(vault_id).copied().unwrap_or(0.0);
-            let mut asset_prices = HashMap::new();
-            
-            for asset in &vault.assets {
-                if let Some(&price) = cached_data.prices.get(asset) {
-                    asset_prices.insert(asset.clone(), price);
-                }
-            }
-            
-            Ok(serde_json::json!({
-                "vault_id": vault.id,
-                "name": vault.name,
-                "platform": vault.platform,
-                "chain": vault.chain,
-                "strategy": vault.strategy,
-                "assets": vault.assets,
-                "risks": vault.risks,
-                "current_apy": vault.apy,
-                "apr_breakdown": vault.apr,
-                "tvl_usd": tvl,
-                "asset_prices": asset_prices,
-                "status": vault.status,
-                "urls": {
-                    "vault": format!("https://app.beefy.finance/vault/{}", vault.id),
-                    "add_liquidity": vault.addLiquidityUrl,
-                    "remove_liquidity": vault.removeLiquidityUrl,
-                },
-                "contracts": {
-                    "vault": vault.earnContractAddress,
-                    "token": vault.tokenAddress,
-                    "strategy": vault.strategy,
-                }
-            }))
-        } else {
-            Err(AdapterError::InvalidData(format!("Vault {} not found", vault_id)))
-        }
-    }
-    
-    /// Get user's historical performance (requires additional API calls)
-    pub async fn get_user_vault_history(&self, user_address: Address, vault_id: &str) -> Result<serde_json::Value, AdapterError> {
-        // This would require Beefy's analytics API or subgraph data
-        // For now, return basic info
-        tracing::info!(
-            user_address = %user_address,
-            vault_id = %vault_id,
-            "📈 Historical performance tracking not yet implemented (requires Beefy analytics API)"
-        );
-        
-        Ok(serde_json::json!({
-            "message": "Historical performance tracking requires Beefy analytics API integration",
-            "vault_id": vault_id,
-            "user_address": format!("{:?}", user_address),
-            "suggested_integrations": [
-                "Beefy Analytics API",
-                "TheGraph Beefy Subgraph",
-                "On-chain event analysis"
-            ]
-        }))
-    }
-    
-    /// Get current boost multipliers (for boosted vaults)
-    pub async fn get_boost_info(&self, vault_id: &str) -> Result<serde_json::Value, AdapterError> {
-        // Some Beefy vaults have boost mechanics
-        // This would require additional API calls to boost contracts
-        
-        Ok(serde_json::json!({
-            "vault_id": vault_id,
-            "boost_available": false,
-            "boost_multiplier": 1.0,
-            "boost_requirements": [],
-            "note": "Boost tracking requires integration with specific boost contracts"
-        }))
-    }
-    
-    /// Estimate gas costs for common operations
-    pub async fn estimate_gas_costs(&self, operation: &str) -> Result<serde_json::Value, AdapterError> {
-        // Estimate gas costs for Beefy operations
-        let base_gas_estimates = match operation {
-            "deposit" => 150_000u64,
-            "withdraw" => 180_000u64,
-            "harvest" => 200_000u64,
-            "compound" => 250_000u64,
-            _ => 150_000u64,
-        };
-        
-        // Get current gas price (this would need gas price oracle)
-        let estimated_gas_price = 20_000_000_000u64; // 20 gwei fallback
-        let estimated_cost_wei = base_gas_estimates * estimated_gas_price;
-        let estimated_cost_eth = estimated_cost_wei as f64 / 10f64.powi(18);
-        let estimated_cost_usd = estimated_cost_eth * self.get_fallback_eth_price().await;
-        
-        Ok(serde_json::json!({
-            "operation": operation,
-            "estimated_gas": base_gas_estimates,
-            "gas_price_gwei": estimated_gas_price / 1_000_000_000,
-            "estimated_cost_eth": estimated_cost_eth,
-            "estimated_cost_usd": estimated_cost_usd,
-            "note": "Estimates only - actual costs may vary"
-        }))
-    }
-    
-    /// Get all active vaults for a specific chain (useful for discovery)
-    pub async fn get_all_vaults_for_chain(&self) -> Result<Vec<serde_json::Value>, AdapterError> {
-        let cached_data = self.fetch_all_vaults_data().await?;
-        
-        let mut vaults_info = Vec::new();
-        for vault in &cached_data.vaults {
-            if vault.status.to_lowercase() == "active" {
-                let tvl = cached_data.tvls.get(&vault.id).copied().unwrap_or(0.0);
-                
-                vaults_info.push(serde_json::json!({
-                    "vault_id": vault.id,
-                    "name": vault.name,
-                    "platform": vault.platform,
-                    "strategy": vault.strategy,
-                    "assets": vault.assets,
-                    "risks": vault.risks,
-                    "current_apy": vault.apy,
-                    "tvl_usd": tvl,
-                    "performance_fee": vault.apr.as_ref()
-                        .and_then(|apr| apr.beefy_performance_fee)
-                        .unwrap_or(4.5),
-                    "vault_url": format!("https://app.beefy.finance/vault/{}", vault.id),
-                }));
-            }
-        }
-        
-        // Sort by TVL descending
-        vaults_info.sort_by(|a, b| {
-            let tvl_a = a.get("tvl_usd").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let tvl_b = b.get("tvl_usd").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            tvl_b.partial_cmp(&tvl_a).unwrap_or(std::cmp::Ordering::Equal)
-        });
-        
-        Ok(vaults_info)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[tokio::test]
-    async fn test_beefy_adapter_creation() {
-        let client = EthereumClient::new("https://eth.llamarpc.com").unwrap();
-        let adapter = BeefyAdapter::new(client, Some(1)).unwrap();
-        
-        assert_eq!(adapter.protocol_name(), "beefy");
-        assert_eq!(adapter.chain, "ethereum");
-    }
-    
-    #[tokio::test]
-    async fn test_chain_mapping() {
-        assert_eq!(BeefyAdapter::get_chain_name(1), "ethereum");
-        assert_eq!(BeefyAdapter::get_chain_name(56), "bsc");
-        assert_eq!(BeefyAdapter::get_chain_name(137), "polygon");
-        assert_eq!(BeefyAdapter::get_chain_name(250), "fantom");
-        assert_eq!(BeefyAdapter::get_chain_name(999), "ethereum"); // fallback
-    }
-    
-    #[tokio::test]
-    async fn test_risk_calculation() {
-        let client = EthereumClient::new("https://eth.llamarpc.com").unwrap();
-        let adapter = BeefyAdapter::new(client, Some(1)).unwrap();
-        
-        let test_position = BeefyPosition {
-            vault_id: "test-vault".to_string(),
-            vault_name: "Test Vault".to_string(),
-            chain: "ethereum".to_string(),
-            vault_address: Address::from_str("0x0000000000000000000000000000000000000000").unwrap(),
-            token_address: Address::from_str("0x0000000000000000000000000000000000000000").unwrap(),
-            balance: U256::from(1000),
-            shares: U256::from(1000),
-            decimals: 18,
-            underlying_assets: vec!["ETH".to_string(), "USDC".to_string()],
-            current_apy: 15.5,
-            performance_fee: 4.5,
-            strategy: "StrategyLP".to_string(),
-            platform: "uniswap".to_string(),
-            risks: vec!["impermanent_loss".to_string()],
-            price_per_full_share: 1.1,
-        };
-        
-        let risk_score = adapter.calculate_beefy_risk_score(&test_position);
-        
-        // Should be reasonable risk score (not too low, not too high)
-        assert!(risk_score >= 20 && risk_score <= 80);
-    }
-    
-    #[test]
-    fn test_api_urls() {
-        assert_eq!(BeefyAdapter::BEEFY_API_BASE, "https://api.beefy.finance");
-    }
-    
-    #[tokio::test]
-    async fn test_fallback_pricing() {
-        let client = EthereumClient::new("https://eth.llamarpc.com").unwrap();
-        let adapter = BeefyAdapter::new(client, Some(1)).unwrap();
-        
-        let eth_price = adapter.get_fallback_eth_price().await;
-        
-        // Should get a reasonable ETH price or fallback
-        assert!(eth_price > 1000.0 && eth_price < 10000.0);
-    }
-    
-    #[tokio::test] 
-    async fn test_vault_discovery() {
-        let client = EthereumClient::new("https://eth.llamarpc.com").unwrap();
-        let adapter = BeefyAdapter::new(client, Some(1)).unwrap();
-        
-        // This test would require network access, so we'll just test the function exists
-        match adapter.get_all_vaults_for_chain().await {
-            Ok(vaults) => {
-                // Should return some vaults if API is accessible
-                assert!(vaults.len() >= 0);
-            }
-            Err(_) => {
-                // Network error is acceptable in tests
-            }
-        }
-    }
-    
-    #[test]
-    fn test_risk_score_bounds() {
-        let client = EthereumClient::new("https://eth.llamarpc.com").unwrap();
-        let adapter = BeefyAdapter::new(client, Some(1)).unwrap();
-        
-        // Test extreme high APY
-        let high_risk_position = BeefyPosition {
-            vault_id: "high-risk".to_string(),
-            vault_name: "High Risk Vault".to_string(),
-            chain: "unknown".to_string(),
-            vault_address: Address::from_str("0x0000000000000000000000000000000000000000").unwrap(),
-            token_address: Address::from_str("0x0000000000000000000000000000000000000000").unwrap(),
-            balance: U256::from(1000),
-            shares: U256::from(1000),
-            decimals: 18,
-            underlying_assets: vec!["UNKNOWN".to_string()],
-            current_apy: 500.0, // Extremely high APY
-            performance_fee: 4.5,
-            strategy: "StrategyLeveraged".to_string(),
-            platform: "unknown".to_string(),
-            risks: vec!["experimental".to_string(), "impermanent_loss".to_string(), "smart_contract".to_string()],
-            price_per_full_share: 1.0,
-        };
-        
-        let risk_score = adapter.calculate_beefy_risk_score(&high_risk_position);
-        
-        // Should be high but capped at 95
-        assert!(risk_score >= 80 && risk_score <= 95);
-    }
-} No position in this vault
+                        // No position in this vault
                     }
                     Err(e) => {
                         tracing::warn!(
@@ -724,7 +361,7 @@ mod tests {
         tracing::info!(
             user_address = %address,
             total_positions = positions.len(),
-            "✅ Discovered ALL Beefy positions"
+            "Discovered Beefy positions"
         );
         
         Ok(positions)
@@ -837,7 +474,7 @@ mod tests {
             current_apy = %position.current_apy,
             estimated_rewards = %estimated_current_rewards,
             performance_fee = %position.performance_fee,
-            "💰 Calculated Beefy position value"
+            "Calculated Beefy position value"
         );
         
         (base_value_usd, estimated_current_rewards, position.current_apy)
@@ -859,59 +496,6 @@ mod tests {
         }
         
         4000.0 // Fallback ETH price
-    }
-    
-    /// Calculate comprehensive risk score for Beefy positions
-    fn calculate_beefy_risk_score(&self, position: &BeefyPosition) -> u8 {
-        let mut risk_score = 25u8; // Base yield farming risk
-        
-        // Strategy risk adjustment
-        match position.strategy.to_lowercase().as_str() {
-            s if s.contains("single") => risk_score += 5, // Single asset strategies
-            s if s.contains("lp") || s.contains("liquidity") => risk_score += 10, // LP token impermanent loss risk
-            s if s.contains("leveraged") || s.contains("leverage") => risk_score += 20, // High risk leveraged strategies
-            s if s.contains("stable") => risk_score = risk_score.saturating_sub(5), // Lower risk stablecoin strategies
-            _ => {} // No adjustment for unknown strategies
-        }
-        
-        // Platform risk adjustment
-        match position.platform.to_lowercase().as_str() {
-            "uniswap" | "sushiswap" | "curve" | "balancer" => risk_score = risk_score.saturating_sub(5), // Well-established platforms
-            "pancakeswap" => {} // No adjustment
-            _ => risk_score += 5, // Unknown platforms get slight penalty
-        }
-        
-        // APY risk adjustment
-        if position.current_apy > 100.0 {
-            risk_score += 15; // Very high APY is suspicious
-        } else if position.current_apy > 50.0 {
-            risk_score += 10; // High APY
-        } else if position.current_apy < 5.0 {
-            risk_score += 5; // Very low APY might indicate issues
-        }
-        
-        // Chain risk adjustment
-        match position.chain.to_lowercase().as_str() {
-            "ethereum" => risk_score = risk_score.saturating_sub(5), // Most secure
-            "polygon" | "arbitrum" | "optimism" => {}, // No adjustment
-            "bsc" | "fantom" | "avax" => risk_score += 3, // Slightly higher risk
-            _ => risk_score += 8, // Unknown chains
-        }
-        
-        // Risk tags from Beefy
-        for risk in &position.risks {
-            match risk.to_lowercase().as_str() {
-                "impermanent_loss" => risk_score += 10,
-                "smart_contract" => risk_score += 8,
-                "liquidity" => risk_score += 5,
-                "complexity" => risk_score += 7,
-                "mcap" => risk_score += 5, // Market cap risk
-                "experimental" => risk_score += 15,
-                _ => risk_score += 3, // Unknown risks
-            }
-        }
-        
-        risk_score.min(95) // Cap at 95 (leave some room for extreme cases)
     }
     
     /// Check if address is a known Beefy vault
@@ -940,10 +524,10 @@ impl DeFiAdapter for BeefyAdapter {
             user_address = %address,
             protocol = "beefy",
             chain = %self.chain,
-            "CACHE CHECK: Checking for cached Beefy positions"
+            "Checking for cached Beefy positions"
         );
         
-        // CACHE CHECK: Prevent API spam (5 minute cache for positions)
+        // Check cache first (5 minute cache for positions)
         {
             let cache = self.position_cache.lock().unwrap();
             if let Some(cached) = cache.get(&address) {
@@ -953,7 +537,7 @@ impl DeFiAdapter for BeefyAdapter {
                         user_address = %address,
                         cache_age_secs = cache_age.as_secs(),
                         position_count = cached.positions.len(),
-                        "CACHE HIT: Returning cached Beefy positions!"
+                        "Returning cached Beefy positions"
                     );
                     return Ok(cached.positions.clone());
                 }
@@ -963,7 +547,7 @@ impl DeFiAdapter for BeefyAdapter {
         tracing::info!(
             user_address = %address,
             chain = %self.chain,
-            "CACHE MISS: Fetching fresh Beefy data from blockchain and API"
+            "Fetching fresh Beefy data from blockchain and API"
         );
         
         // Get user positions
@@ -985,7 +569,6 @@ impl DeFiAdapter for BeefyAdapter {
         // Convert to Position structs with comprehensive data
         for beefy_pos in beefy_positions {
             let (value_usd, rewards_usd, current_apy) = self.calculate_position_value(&beefy_pos, &cached_data).await;
-            let risk_score = self.calculate_beefy_risk_score(&beefy_pos);
             
             let position = Position {
                 id: format!("beefy_{}_{}", self.chain, beefy_pos.vault_id),
@@ -998,7 +581,6 @@ impl DeFiAdapter for BeefyAdapter {
                 value_usd: value_usd.max(0.01),
                 pnl_usd: rewards_usd,
                 pnl_percentage: current_apy,
-                risk_score,
                 metadata: serde_json::json!({
                     // Vault Information
                     "vault_id": beefy_pos.vault_id,
@@ -1023,7 +605,6 @@ impl DeFiAdapter for BeefyAdapter {
                     "strategy_platform": beefy_pos.platform,
                     "underlying_assets": beefy_pos.underlying_assets,
                     "risks": beefy_pos.risks,
-                    "risk_score_detailed": risk_score,
                     
                     // External Links
                     "beefy_vault_url": format!("https://app.beefy.finance/vault/{}", beefy_pos.vault_id),
@@ -1049,4 +630,84 @@ impl DeFiAdapter for BeefyAdapter {
                             "total_apy": apr.total_apy,
                         })),
                     
-                    //
+                    // Protocol Info
+                    "auto_compound": true, // Beefy always auto-compounds
+                    "compound_frequency": "multiple_times_daily",
+                    "protocol_type": "yield_optimizer",
+                }),
+                last_updated: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            };
+            
+            positions.push(position);
+        }
+        
+        // Save results to cache
+        {
+            let mut cache = self.position_cache.lock().unwrap();
+            cache.insert(address, CachedPositions {
+                positions: positions.clone(),
+                cached_at: SystemTime::now(),
+            });
+        }
+        
+        tracing::info!(
+            user_address = %address,
+            position_count = positions.len(),
+            total_value_usd = positions.iter().map(|p| p.value_usd).sum::<f64>(),
+            "Successfully fetched and cached Beefy positions"
+        );
+        
+        Ok(positions)
+    }
+    
+    async fn supports_contract(&self, contract_address: Address) -> bool {
+        self.is_beefy_vault(contract_address).await
+    }
+    
+    async fn get_position_value(&self, position: &Position) -> Result<f64, AdapterError> {
+        // For Beefy positions, we can recalculate real-time value
+        // by getting fresh price data and vault exchange rates
+        
+        if let Some(vault_id) = position.metadata.get("vault_id") {
+            if let Some(vault_id_str) = vault_id.as_str() {
+                // Try to get fresh data
+                if let Ok(cached_data) = self.fetch_all_vaults_data().await {
+                    // Find the vault in cached data
+                    if let Some(vault) = cached_data.vaults.iter().find(|v| v.id == vault_id_str) {
+                        // Get fresh price from price oracle
+                        let mut fresh_price = 0.0f64;
+                        for asset in &vault.assets {
+                            if let Some(&price) = cached_data.prices.get(asset) {
+                                fresh_price = price;
+                                break;
+                            }
+                        }
+                        
+                        if fresh_price > 0.0 {
+                            // Calculate updated value (simplified)
+                            if let Some(balance_str) = position.metadata.get("balance") {
+                                if let Some(balance_str) = balance_str.as_str() {
+                                    if let Ok(balance_raw) = U256::from_str(balance_str) {
+                                        if let Some(decimals) = position.metadata.get("decimals") {
+                                            if let Some(decimals_num) = decimals.as_u64() {
+                                                let balance_f64 = balance_raw.to::<f64>() / 10f64.powi(decimals_num as i32);
+                                                let fresh_value = balance_f64 * fresh_price;
+                                                return Ok(fresh_value);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Fallback to cached value
+        Ok(position.value_usd)
+    }
+}

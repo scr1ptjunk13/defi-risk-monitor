@@ -1,10 +1,10 @@
 // Only include modules that actually exist
 pub mod adapters;
-pub mod handlers;
-pub mod risk;
-pub mod services;
+pub mod health;
 
-// Removed missing modules:
+// Removed missing modules (cleaned up):
+// pub mod handlers; - removed, starting fresh
+// pub mod services; - removed, starting fresh
 // pub mod config;
 // pub mod models;
 // pub mod blockchain;
@@ -18,16 +18,13 @@ pub mod services;
 // Removed broken error import:
 // pub use error::types::*;
 
-// Application state for Axum handlers - simplified to only include existing services
+// Simplified AppState - no services needed for direct adapter approach
 #[derive(Clone)]
 pub struct AppState {
-    pub blockchain_service: std::sync::Arc<services::BlockchainService>,
-    // Removed all broken references to non-existent modules:
-    // pub db_pool: sqlx::PgPool,
-    // pub settings: config::Settings,
-    // pub production_config: config::ProductionConfig,
-    // pub config_manager: std::sync::Arc<tokio::sync::Mutex<config::ConfigManager>>,
-    // pub websocket_service: Option<std::sync::Arc<services::websocket_service::WebSocketService>>,
+    // For now, we'll use direct adapter initialization in handlers
+    // No complex service layer needed
+    pub rpc_url: String,
+    pub coingecko_api_key: Option<String>,
     // pub real_time_service: Option<std::sync::Arc<services::real_time_risk_service::RealTimeRiskService>>,
     // pub jwt_service: std::sync::Arc<auth::jwt::JwtService>,
     // pub health_checker: std::sync::Arc<utils::monitoring::HealthChecker>,

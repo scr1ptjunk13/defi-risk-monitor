@@ -1,4 +1,4 @@
-// Enhanced Balancer V2 Adapter with proper error handling and fallback strategies
+// Streamlined Balancer V2 Adapter focused on position fetching
 use alloy::primitives::{Address, U256};
 use alloy::sol;
 use alloy::providers::Provider;
@@ -382,59 +382,6 @@ impl BalancerV2Adapter {
         
         (apr, apy * 100.0)
     }
-    
-    /// Calculate risk score for Balancer positions
-    fn calculate_balancer_risk_score(&self, positions: &[BalancerPosition]) -> u8 {
-        if positions.is_empty() {
-            return 0;
-        }
-        
-        let mut risk_score = 0;
-        let total_value: f64 = positions.iter().map(|p| p.total_value_usd).sum();
-        
-        for position in positions {
-            let position_weight = if total_value > 0.0 { position.total_value_usd / total_value } else { 0.0 };
-            
-            // Pool type risk
-            let pool_risk = match position.pool_info.pool_type.as_str() {
-                "weighted" => 40, // Higher IL risk for weighted pools
-                "stable" => 10,   // Lower IL risk for stable pools
-                "metastable" => 20, // Medium IL risk
-                _ => 30, // Default
-            };
-            
-            // Concentration risk (number of tokens)
-            let concentration_risk = match position.pool_info.tokens.len() {
-                1..=2 => 30, // High concentration risk
-                3..=4 => 15, // Medium concentration risk
-                _ => 5,      // Low concentration risk
-            };
-            
-            // Volatility risk based on token types
-            let mut volatility_risk = 0;
-            for token in &position.pool_info.tokens {
-                match token.symbol.as_str() {
-                    "WETH" | "WBTC" => volatility_risk += 10,
-                    "USDC" | "USDT" | "DAI" => volatility_risk += 2,
-                    "BAL" | "COMP" | "AAVE" => volatility_risk += 15,
-                    _ => volatility_risk += 20, // Unknown tokens are riskier
-                }
-            }
-            volatility_risk = volatility_risk.min(40);
-            
-            // Weight risk factors by position size
-            let weighted_risk = ((pool_risk + concentration_risk + volatility_risk) as f64 * position_weight) as u8;
-            risk_score += weighted_risk;
-        }
-        
-        // Additional risk for staked positions (smart contract risk)
-        let staked_positions: Vec<_> = positions.iter().filter(|p| p.is_staked).collect();
-        if !staked_positions.is_empty() {
-            risk_score += 5; // Additional smart contract risk
-        }
-        
-        risk_score.min(100)
-    }
 }
 
 #[async_trait]
@@ -451,7 +398,6 @@ impl DeFiAdapter for BalancerV2Adapter {
         
         let pools = self.get_major_pools().await?;
         let mut positions = Vec::new();
-        let mut balancer_positions = Vec::new();
         
         for (pool_id, pool_address) in pools {
             // Get pool information
@@ -524,21 +470,11 @@ impl DeFiAdapter for BalancerV2Adapter {
                 value_usd: total_value_usd,
                 pnl_usd: total_pnl,
                 pnl_percentage,
-                risk_score: 0, // Will be calculated below
                 metadata: serde_json::to_value(&balancer_position).unwrap_or_default(),
                 last_updated: chrono::Utc::now().timestamp() as u64,
             };
             
             positions.push(position);
-            balancer_positions.push(balancer_position);
-        }
-        
-        // Calculate risk score for all positions
-        let risk_score = self.calculate_balancer_risk_score(&balancer_positions);
-        
-        // Apply risk score to all positions
-        for position in &mut positions {
-            position.risk_score = risk_score;
         }
         
         tracing::info!(
@@ -553,20 +489,6 @@ impl DeFiAdapter for BalancerV2Adapter {
     async fn supports_contract(&self, _contract_address: Address) -> bool {
         // Return true for all addresses - we'll check during fetch
         true
-    }
-    
-    async fn calculate_risk_score(&self, positions: &[Position]) -> Result<u8, AdapterError> {
-        if positions.is_empty() {
-            return Ok(0);
-        }
-        
-        // Extract Balancer positions from metadata
-        let balancer_positions: Vec<BalancerPosition> = positions
-            .iter()
-            .filter_map(|p| serde_json::from_value(p.metadata.clone()).ok())
-            .collect();
-        
-        Ok(self.calculate_balancer_risk_score(&balancer_positions))
     }
     
     async fn get_position_value(&self, position: &Position) -> Result<f64, AdapterError> {
